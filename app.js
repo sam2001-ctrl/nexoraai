@@ -1,5 +1,5 @@
 const config = window.NEXORA_CONFIG || {};
-const AGORA_SERVER = 'http://localhost:8000';
+const AGORA_SERVER = window.location.origin;
 const AGORA_CHANNEL = 'nexora-demo';
 const AGORA_UID = Math.floor(Math.random() * 1_000_000) + 1;
 let agoraClient = null, microphoneTrack = null, agoraAgentId = null, isConnectingAgora = false;

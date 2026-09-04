@@ -1,6 +1,7 @@
 """Nexora AI local server: Gemini chat plus Agora Conversational AI."""
 import base64, json, os, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
@@ -17,6 +18,15 @@ AGORA_CUSTOMER_SECRET = os.environ.get("AGORA_CUSTOMER_SECRET")
 AGORA_PIPELINE_ID = os.environ.get("AGORA_PIPELINE_ID")
 AGORA_CHANNEL = os.environ.get("AGORA_CHANNEL", "nexora-demo")
 AGORA_AGENT_UID = int(os.environ.get("AGORA_AGENT_UID", "14297"))
+PORT = int(os.environ.get("PORT", "8000"))
+STATIC_FILES = {
+    "/": ("index.html", "text/html; charset=utf-8"),
+    "/index.html": ("index.html", "text/html; charset=utf-8"),
+    "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/api-config.js": ("api-config.js", "text/javascript; charset=utf-8"),
+    "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+}
+PROJECT_DIR = Path(__file__).resolve().parent
 
 def required(name, value):
     if not value: raise ValueError(f"{name} is missing from .env")
@@ -51,14 +61,20 @@ class NexoraHandler(BaseHTTPRequestHandler):
     def read_json(self):
         try: return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         except (ValueError, json.JSONDecodeError) as error: raise ValueError("Request body must be valid JSON") from error
+    def serve_static(self, path):
+        filename, content_type = STATIC_FILES[path]
+        body = (PROJECT_DIR / filename).read_bytes()
+        self.send_response(200); self.send_header("Content-Type", content_type); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
     def do_OPTIONS(self): self.send_response(204); self.send_header("Access-Control-Allow-Origin", "*"); self.send_header("Access-Control-Allow-Headers", "Content-Type"); self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); self.end_headers()
     def do_GET(self):
-        if self.path.startswith("/agora/token"):
+        path = urlparse(self.path).path
+        if path == "/health": return self.send_json(200, {"success": True})
+        if path == "/agora/token":
             try:
                 query = parse_qs(urlparse(self.path).query); channel = query.get("channel", [AGORA_CHANNEL])[0]; uid = int(query.get("uid", ["12345"])[0])
                 return self.send_json(200, {"appId": AGORA_APP_ID, "channel": channel, "uid": uid, "token": generate_agora_token(channel, uid)})
             except Exception as error: return self.send_json(500, {"error": str(error)})
-        if self.path == "/": return self.send_json(200, {"success": True, "server": "Nexora AI", "status": "running"})
+        if path in STATIC_FILES: return self.serve_static(path)
         return self.send_json(404, {"error": "Not found"})
     def do_POST(self):
         try:
@@ -84,7 +100,7 @@ class NexoraHandler(BaseHTTPRequestHandler):
         except Exception as error: return self.send_json(500, {"error": str(error)})
 
 if __name__ == "__main__":
-    print("Nexora server: http://localhost:8000")
+    print(f"Nexora server: http://localhost:{PORT}")
     print(f"Agora REST credentials: {'loaded' if AGORA_CUSTOMER_ID and AGORA_CUSTOMER_SECRET else 'missing'}")
     print(f"Agora pipeline ID: {'loaded' if AGORA_PIPELINE_ID else 'missing'}")
-    ThreadingHTTPServer(("localhost", 8000), NexoraHandler).serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", PORT), NexoraHandler).serve_forever()

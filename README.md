@@ -38,13 +38,7 @@ Nexora has two independent modes:
    py server.py
    ```
 
-5. Serve this folder from a local web server rather than opening `index.html` directly. For example, open a second PowerShell window and run:
-
-   ```powershell
-   py -m http.server 3000
-   ```
-
-   Then visit `http://localhost:3000`. Allow microphone access and select the microphone button. Press it again to end the voice session.
+5. Visit `http://localhost:8000`. Allow microphone access and select the microphone button. Press it again to end the voice session.
 
 ## What was fixed
 
