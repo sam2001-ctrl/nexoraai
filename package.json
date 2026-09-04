@@ -1,0 +1,19 @@
+{
+  "name": "ai-working-model",
+  "version": "1.0.0",
+  "description": "A voice-enabled AI chat interface that works immediately in demo mode and is ready for your API.",
+  "main": "api-config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/genai": "^2.19.0",
+    "agora-rtc-sdk-ng": "^4.24.8",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}
