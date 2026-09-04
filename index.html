@@ -1,58 +1,7 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nexora AI — Voice Assistant</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <a class="brand" href="#" aria-label="Nexora AI home">
-          <span class="brand-mark"><i></i><i></i><i></i></span>
-          <span>NEXORA<span class="muted">AI</span></span>
-        </a>
-        <div class="status"><span class="pulse"></span><span id="statusText">Ready to assist</span></div>
-      </header>
-
-      <section class="hero" aria-labelledby="pageTitle">
-        <p class="eyebrow">INTELLIGENCE, AMPLIFIED</p>
-        <h1 id="pageTitle">What can we <em>create</em> today?</h1>
-        <p class="subhead">A voice-enabled AI workspace designed for clear thinking and fast answers.</p>
-      </section>
-
-      <section id="chat" class="conversation" aria-live="polite">
-        <article class="message assistant">
-          <div class="avatar">N</div>
-          <div class="bubble">Welcome to Nexora. Ask a question, share an idea, or use the microphone to speak.</div>
-        </article>
-      </section>
-
-      <section class="composer-wrap">
-        <div class="suggestions" aria-label="Suggested prompts">
-          <button class="suggestion">Brainstorm a product idea</button>
-          <button class="suggestion">Explain a complex topic</button>
-          <button class="suggestion">Write a focused plan</button>
-        </div>
-        <form id="chatForm" class="composer">
-          <button id="voiceButton" class="icon-button voice" type="button" aria-label="Start voice input" title="Speak to Nexora">
-            <span class="mic"></span>
-          </button>
-          <label class="input-wrap">
-            <span class="sr-only">Your message</span>
-            <textarea id="promptInput" rows="1" placeholder="Message Nexora..." autocomplete="off"></textarea>
-          </label>
-          <button class="send-button" type="submit" aria-label="Send message"><span>Send</span><b>↗</b></button>
-        </form>
-        <p class="privacy-note">Text chat uses your configured API. Voice conversations use your Agora pipeline after you add the server credentials in <code>.env</code>.</p>
-      </section>
-    </main>
-    <script src="api-config.js"></script>
-
-<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.24.2.js"></script>
-
-<script src="app.js"></script>
-
-  </body>
-</html>
+<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Nexora AI</title><link rel="stylesheet" href="styles.css" /></head><body>
+<main class="app-shell"><header class="topbar"><a class="brand" href="#" id="homeButton" aria-label="Nexora AI home"><span class="brand-mark"><i></i><i></i><i></i></span><span>NEXORA<span class="muted">AI</span></span></a><div class="status"><span class="pulse"></span><span id="statusText">Choose a mode</span></div></header>
+<section id="modePicker" class="mode-picker" aria-labelledby="pageTitle"><p class="eyebrow">INTELLIGENCE, AMPLIFIED</p><h1 id="pageTitle">Choose how you want to <em>connect.</em></h1><p class="subhead">Type for focused answers, or speak naturally in a live voice conversation.</p><div class="mode-grid"><button class="mode-card" data-mode="chat"><span class="mode-icon">⌁</span><span class="mode-label">Text intelligence</span><strong>Chat Bot</strong><span>Ask, create, and explore with Gemini.</span><b>Start chatting <i>→</i></b></button><button class="mode-card featured" data-mode="voice"><span class="mode-icon">◌</span><span class="mode-label">Live voice</span><strong>Conversational AI</strong><span>Talk naturally with your Agora AI agent.</span><b>Enter voice mode <i>→</i></b></button></div></section>
+<section id="chatMode" class="mode-screen" hidden aria-labelledby="chatTitle"><div class="screen-heading"><button class="back-button" data-back>← All modes</button><p class="eyebrow">GEMINI · TEXT CHAT</p><h1 id="chatTitle">Think in <em>words.</em></h1></div><section id="chat" class="conversation" aria-live="polite"><article class="message assistant"><div class="avatar">N</div><div class="bubble">Welcome to Nexora. What would you like to explore?</div></article></section><section class="composer-wrap"><div class="suggestions" aria-label="Suggested prompts"><button class="suggestion">Brainstorm a product idea</button><button class="suggestion">Explain a complex topic</button><button class="suggestion">Write a focused plan</button></div><form id="chatForm" class="composer"><label class="input-wrap"><span class="sr-only">Your message</span><textarea id="promptInput" rows="1" placeholder="Message Nexora..." autocomplete="off"></textarea></label><button class="send-button" type="submit" aria-label="Send message"><span>Send</span><b>↗</b></button></form><p class="privacy-note">Powered by your configured Gemini API.</p></section></section>
+<section id="voiceMode" class="mode-screen voice-screen" hidden aria-labelledby="voiceTitle"><div class="screen-heading voice-heading"><button class="back-button" data-back>← All modes</button><p class="eyebrow">AGORA · LIVE CONVERSATION</p><h1 id="voiceTitle">Speak. Listen. <em>Flow.</em></h1><p class="subhead">Your live conversation is captured below as it happens.</p></div><div class="voice-stage"><div class="orb-wrap"><div class="orb"><span></span></div><p id="voiceState">Ready when you are</p></div><button id="voiceButton" class="voice-action" type="button"><span class="mic"></span><span id="voiceButtonText">Start conversation</span></button><p class="voice-hint">Your microphone is only shared while this session is active.</p></div><section class="captions-panel" aria-live="polite" aria-label="Live conversation captions"><div class="caption-header"><span>Live captions</span><span id="captionIndicator">WAITING</span></div><div id="voiceCaptions" class="voice-captions"><div class="caption system"><span>System</span><p>Start a voice conversation to see captions here.</p></div></div></section></section>
+</main><script src="api-config.js"></script><script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.24.2.js"></script><script src="app.js"></script></body></html>
