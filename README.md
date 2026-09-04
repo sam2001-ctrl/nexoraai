@@ -26,11 +26,10 @@ Nexora has two independent modes:
    AGORA_CUSTOMER_ID=your_rest_customer_id
    AGORA_CUSTOMER_SECRET=your_rest_customer_secret
    AGORA_PIPELINE_ID=your_published_ai_studio_pipeline_id
-   AGORA_CHANNEL=nexora-demo
    AGORA_AGENT_UID=14297
    ```
 
-   `AGORA_AGENT_UID` must be an unused numeric UID, different from every browser user's UID. `AGORA_PIPELINE_ID` is the published pipeline ID, not an agent token.
+   `AGORA_AGENT_UID` must be an unused numeric UID, different from every browser user's UID. `AGORA_PIPELINE_ID` is the published pipeline ID, not an agent token. You do not need to set `AGORA_CHANNEL`: the app creates a new private channel for each visitor.
 
 4. Start the local server:
 

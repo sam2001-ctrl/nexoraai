@@ -54,6 +54,19 @@ def start_agora_agent(channel, client_uid):
     payload = {"name": f"nexora-{int(time.time())}", "pipeline_id": required("AGORA_PIPELINE_ID", AGORA_PIPELINE_ID), "properties": {"channel": channel, "agent_rtc_uid": str(AGORA_AGENT_UID), "remote_rtc_uids": [str(client_uid)], "token": generate_agora_token(channel, AGORA_AGENT_UID), "enable_string_uid": False, "idle_timeout": 60}}
     return agora_request("/join", payload)
 
+def request_gemini(request):
+    """Retry short-lived Gemini capacity and service errors before failing."""
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=90) as response:
+                return json.loads(response.read())
+        except HTTPError as error:
+            if error.code not in (429, 500, 503) or attempt == 2:
+                if error.code in (429, 500, 503):
+                    raise RuntimeError("Gemini is temporarily busy. Please try again in a moment.") from error
+                raise
+            time.sleep(1.5 * (2 ** attempt))
+
 class NexoraHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args): print("[Nexora]", format % args)
     def send_json(self, status, payload):
@@ -92,7 +105,7 @@ class NexoraHandler(BaseHTTPRequestHandler):
             if not contents: return self.send_json(400, {"error": "Please send at least one message."})
             model = data.get("model") or GEMINI_MODEL
             request = Request(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}", data=json.dumps({"contents": contents}).encode(), headers={"Content-Type": "application/json"}, method="POST")
-            with urlopen(request, timeout=90) as response: result = json.loads(response.read())
+            result = request_gemini(request)
             parts = result.get("candidates", [{}])[0].get("content", {}).get("parts", [])
             return self.send_json(200, {"reply": "".join(p.get("text", "") for p in parts) or "I couldn't generate a response."})
         except HTTPError as error: return self.send_json(error.code, {"error": error.read().decode(errors="replace")})
