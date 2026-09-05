@@ -105,6 +105,14 @@ async function getReply(prompt) {
   if (!config.endpoint) return `I’m in demo mode. Connect your endpoint in api-config.js to send: “${prompt}”.`;
   chatRequest = new AbortController();
   const response = await fetch(config.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: chatRequest.signal, body: JSON.stringify({ model: config.model, messages: history.slice(-16) }) });
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const responseText = await response.text();
+    if (responseText.trimStart().startsWith('<')) {
+      throw new Error('The AI server is not running here. Start server.py, then open http://localhost:8000 — not Live Server or the HTML file directly.');
+    }
+    throw new Error('The AI server returned an unexpected response. Open http://localhost:8000 after starting server.py.');
+  }
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Your AI endpoint returned an error.');
   return data.reply || data.message || data.choices?.[0]?.message?.content || 'Your endpoint returned no reply.';

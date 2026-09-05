@@ -39,6 +39,18 @@ Nexora has two independent modes:
 
 5. Visit `http://localhost:8000`. Allow microphone access and select the microphone button. Press it again to end the voice session.
 
+Do not open `index.html` directly or use VS Code Live Server. Those options only serve the visual files; they do not run the `/api/chat` endpoint and will cause an `Unexpected token '<'` message.
+
+## Deploy to Render
+
+This project must be deployed as a **Web Service**, not a Static Site. The included `render.yaml` configures Render to install the Python dependencies, run `python server.py`, and check `/health`.
+
+1. Push the updated project to your connected GitHub branch.
+2. In Render, create a new **Blueprint** from that repository (or create a **Web Service** manually).
+3. If creating it manually, use build command `pip install -r requirements.txt`, start command `python server.py`, and health check path `/health`.
+4. Add the values from your local `.env` as Render environment variables. Do not upload or commit `.env`.
+5. Redeploy, then open the Render Web Service URL. Do not use a separate GitHub Pages or Render Static Site URL for this app.
+
 ## What was fixed
 
 - The browser now calls the agent-start endpoint after it joins and publishes its microphone.
