@@ -1,8 +1,9 @@
-// Local Gemini proxy. Keep GEMINI_API_KEY in your terminal, not in browser files.
+// Legacy Node/Gemini proxy - not used by the current app (see server.py + README).
+// Kept only for reference. Keep GEMINI_API_KEY in your terminal, not in browser files.
 const http = require('http');
 
 const apiKey = process.env.GEMINI_API_KEY;
-const defaultModel = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const defaultModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 function sendJson(response, status, body) {
   response.writeHead(status, {

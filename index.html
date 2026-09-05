@@ -1,7 +1,213 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Nexora AI</title><link rel="stylesheet" href="styles.css" /></head><body>
-<main class="app-shell"><header class="topbar"><a class="brand" href="#" id="homeButton" aria-label="Nexora AI home"><span class="brand-mark"><i></i><i></i><i></i></span><span>NEXORA<span class="muted">AI</span></span></a><div class="status"><span class="pulse"></span><span id="statusText">Choose a mode</span></div></header>
-<section id="modePicker" class="mode-picker" aria-labelledby="pageTitle"><p class="eyebrow">INTELLIGENCE, AMPLIFIED</p><h1 id="pageTitle">Choose how you want to <em>connect.</em></h1><p class="subhead">Type for focused answers, or speak naturally in a live voice conversation.</p><div class="mode-grid"><button class="mode-card" data-mode="chat"><span class="mode-icon">⌁</span><span class="mode-label">Text intelligence</span><strong>Chat Bot</strong><span>Ask, create, and explore with Gemini.</span><b>Start chatting <i>→</i></b></button><button class="mode-card featured" data-mode="voice"><span class="mode-icon">◌</span><span class="mode-label">Live voice</span><strong>Conversational AI</strong><span>Talk naturally with your Agora AI agent.</span><b>Enter voice mode <i>→</i></b></button></div></section>
-<section id="chatMode" class="mode-screen" hidden aria-labelledby="chatTitle"><div class="screen-heading"><button class="back-button" data-back>← All modes</button><p class="eyebrow">GEMINI · TEXT CHAT</p><h1 id="chatTitle">Think in <em>words.</em></h1></div><section id="chat" class="conversation" aria-live="polite"><article class="message assistant"><div class="avatar">N</div><div class="bubble">Welcome to Nexora. What would you like to explore?</div></article></section><section class="composer-wrap"><div class="suggestions" aria-label="Suggested prompts"><button class="suggestion">Brainstorm a product idea</button><button class="suggestion">Explain a complex topic</button><button class="suggestion">Write a focused plan</button></div><form id="chatForm" class="composer"><label class="input-wrap"><span class="sr-only">Your message</span><textarea id="promptInput" rows="1" placeholder="Message Nexora..." autocomplete="off"></textarea></label><button class="send-button" type="submit" aria-label="Send message"><span>Send</span><b>↗</b></button></form><p class="privacy-note">Powered by your configured Gemini API.</p></section></section>
-<section id="voiceMode" class="mode-screen voice-screen" hidden aria-labelledby="voiceTitle"><div class="screen-heading voice-heading"><button class="back-button" data-back>← All modes</button><p class="eyebrow">AGORA · LIVE CONVERSATION</p><h1 id="voiceTitle">Speak. Listen. <em>Flow.</em></h1><p class="subhead">Your live conversation is captured below as it happens.</p></div><div class="voice-stage"><div class="orb-wrap"><div class="orb"><span></span></div><p id="voiceState">Ready when you are</p></div><button id="voiceButton" class="voice-action" type="button"><span class="mic"></span><span id="voiceButtonText">Start conversation</span></button><p class="voice-hint">Your microphone is only shared while this session is active.</p></div><section class="captions-panel" aria-live="polite" aria-label="Live conversation captions"><div class="caption-header"><span>Live captions</span><span id="captionIndicator">WAITING</span></div><div id="voiceCaptions" class="voice-captions"><div class="caption system"><span>System</span><p>Start a voice conversation to see captions here.</p></div></div></section></section>
-</main><script src="api-config.js"></script><script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.24.2.js"></script><script src="app.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexora AI - Learn beyond the textbook</title>
+  <meta name="description" content="Nexora AI is a thoughtful assistant for curious students - chat by text or talk live, powered by real-time answers." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="field" aria-hidden="true"></div>
+
+<nav class="nav">
+  <div class="shell nav-row">
+    <a class="brand" href="#top">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="9" stroke="#050609" stroke-width="1.6"/>
+          <path d="M8 15V9l8 6V9" stroke="#050609" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span>NEXORA<span class="muted">AI</span></span>
+    </a>
+    <ul class="nav-links">
+      <li><button data-scroll="top">Home</button></li>
+      <li><button data-scroll="features">What we do</button></li>
+      <li><button data-scroll="team">The team</button></li>
+      <li><button data-scroll="console">Console</button></li>
+    </ul>
+    <button class="nav-cta" data-scroll="console">Launch console</button>
+  </div>
+</nav>
+
+<main id="top">
+
+  <!-- ---------------------------------------------------------------- hero -->
+  <header class="shell hero">
+    <div>
+      <p class="eyebrow">Made in India, for curious minds</p>
+      <h1>Learn <em>beyond</em><br/>the textbook.</h1>
+      <p class="lede">Thoughtful AI tools that help students research with confidence, create freely, and turn every question into a new possibility.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://opnform.com/forms/contact-form-rsq6br" target="_blank" rel="noopener">Start exploring →</a>
+        <button class="btn btn-ghost" data-scroll="console">Enter the console</button>
+      </div>
+      <p class="hero-note">Built by students, for the next generation.</p>
+    </div>
+    <div class="hero-visual">
+      <canvas id="heroGlobe" aria-label="Rotating globe, drag to spin" role="img"></canvas>
+      <div class="hero-visual-tag"><span>NEXORA ENGINE</span><span>DRAG TO ROTATE</span></div>
+    </div>
+  </header>
+
+  <!-- ------------------------------------------------------------ features -->
+  <section id="features" class="shell">
+    <div class="section-head">
+      <p class="eyebrow">A better way to learn</p>
+      <h2>Built around your curiosity.</h2>
+      <p>Learning should feel expansive, not overwhelming. Nexora gives young thinkers a capable companion for every step of the journey.</p>
+    </div>
+    <div class="feature-grid">
+      <article class="feature-card">
+        <div class="feature-icon">✦</div>
+        <h3>Intelligent by design</h3>
+        <p>Clear, useful support powered by modern AI - ready when an idea strikes.</p>
+      </article>
+      <article class="feature-card">
+        <div class="feature-icon">⌁</div>
+        <h3>Education first</h3>
+        <p>Made with students and researchers in mind, from first question to final project.</p>
+      </article>
+      <article class="feature-card">
+        <div class="feature-icon">↗</div>
+        <h3>Instant momentum</h3>
+        <p>Move from "I wonder" to real progress without losing your creative flow.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- -------------------------------------------------------------- impact -->
+  <section id="impact" class="impact">
+    <div class="shell">
+      <div class="section-head">
+        <p class="eyebrow">Our point of view</p>
+        <h2>Big ideas can start early.</h2>
+        <p>Nexora is proof that curiosity, care, and a willingness to make things can change what's possible.</p>
+      </div>
+      <div class="impact-grid">
+        <div class="impact-stat"><b>6th</b><span>graders who made it</span></div>
+        <div class="impact-stat"><b>India</b><span>our home and inspiration</span></div>
+        <div class="impact-stat"><b>24/7</b><span>ready for your next question</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------------- team -->
+  <section id="team" class="shell">
+    <div class="section-head">
+      <p class="eyebrow">Who's behind it</p>
+      <h2>The team.</h2>
+    </div>
+    <div class="team-grid">
+      <article class="team-card">
+        <img class="team-photo" src="https://nexoraai200.netlify.app/Sarthak.png" alt="Sarthak Sharma" loading="lazy" onerror="this.style.display='none'" />
+        <h3>Sarthak Sharma</h3>
+        <p>Founder &amp; Head</p>
+      </article>
+      <article class="team-card">
+        <img class="team-photo" src="https://nexoraai200.netlify.app/IMG-20260818-WA0000.jpg" alt="Aarav Goel" loading="lazy" onerror="this.style.display='none'" />
+        <h3>Aarav Goel</h3>
+        <p>Head Consultant</p>
+      </article>
+      <article class="team-card">
+        <img class="team-photo" src="https://nexoraai200.netlify.app/Aadvik%20Gupta.jpg" alt="Advik Gupta" loading="lazy" onerror="this.style.display='none'" />
+        <h3>Advik Gupta</h3>
+        <p>Head of Research</p>
+      </article>
+      <article class="team-card">
+        <img class="team-photo" src="https://nexoraai200.netlify.app/IMG-20260818-WA0014.jpg" alt="Aarav Choudhary" loading="lazy" onerror="this.style.display='none'" />
+        <h3>Aarav Choudhary</h3>
+        <p>Research Assistant</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------- closing -->
+  <section class="shell closing">
+    <p class="eyebrow">Get started</p>
+    <h2>Your next big question starts here.</h2>
+    <a class="btn btn-primary" href="https://opnform.com/forms/contact-form-rsq6br" target="_blank" rel="noopener">Get started →</a>
+  </section>
+
+  <!-- ------------------------------------------------------------- console -->
+  <section id="console" class="shell console-section">
+    <div class="section-head">
+      <p class="eyebrow">Try it now</p>
+      <h2>Talk to Nexora.</h2>
+      <p>Two ways in, both live: type for a focused answer, or talk it through out loud.</p>
+    </div>
+
+    <div class="console-grid">
+
+      <!-- chat window -->
+      <div class="window" aria-label="Text chat console">
+        <div class="window-bar">
+          <span class="window-dots"><i></i><i></i><i></i></span>
+          <span class="window-title">chat.nexora</span>
+          <span class="window-status" id="chatStatus"><i class="dot"></i>Ready</span>
+        </div>
+        <section id="chat" class="chat-log" aria-live="polite">
+          <article class="message assistant">
+            <div class="avatar">N</div>
+            <div class="bubble">Welcome to Nexora. What would you like to explore?</div>
+          </article>
+        </section>
+        <div class="composer-area">
+          <div class="suggestions">
+            <button class="suggestion" type="button">Brainstorm a project idea</button>
+            <button class="suggestion" type="button">Explain a tricky topic</button>
+            <button class="suggestion" type="button">What's the weather right now?</button>
+          </div>
+          <form id="chatForm" class="composer">
+            <label class="sr-only" for="promptInput">Your message</label>
+            <textarea id="promptInput" rows="1" placeholder="Message Nexora..." autocomplete="off"></textarea>
+            <button class="send-button" type="submit" id="sendButton" aria-label="Send message"><span>Send</span></button>
+          </form>
+          <div class="utility-row">
+            <button class="clear-history-button" id="clearHistoryButton" type="button">Clear chat history</button>
+            <span class="provider-note" id="providerNote">Answers via your configured AI provider</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- voice window -->
+      <div class="window" aria-label="Live voice console">
+        <div class="window-bar">
+          <span class="window-dots"><i></i><i></i><i></i></span>
+          <span class="window-title">voice.nexora</span>
+          <span class="window-status" id="voiceStatus"><i class="dot"></i>Ready</span>
+        </div>
+        <div class="voice-body">
+          <div class="voice-globe-wrap">
+            <canvas id="voiceGlobe" aria-label="Voice agent globe, drag to spin" role="img"></canvas>
+          </div>
+          <p class="voice-state" id="voiceState">Ready when you are</p>
+          <button id="voiceButton" class="voice-action" type="button">
+            <svg class="mic-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M12 15.5c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6.5c0 1.66 1.34 3 3 3Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6 11v1.5a6 6 0 0 0 12 0V11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M12 18.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <span id="voiceButtonText">Start conversation</span>
+          </button>
+          <p class="voice-hint">Your microphone is only shared while this conversation is active.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer class="shell">
+  <span>© 2026 Nexora AI. Made thoughtfully for the future.</span>
+  <span>Voice powered by Agora</span>
+</footer>
+
+<script src="api-config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.24.2.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

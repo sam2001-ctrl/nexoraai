@@ -1,7 +1,7 @@
 {
-  "name": "ai-working-model",
+  "name": "nexora-ai",
   "version": "1.0.0",
-  "description": "A voice-enabled AI chat interface that works immediately in demo mode and is ready for your API.",
+  "description": "Nexora AI - text chat plus live voice console. Active backend is server.py; server.js is a legacy reference only.",
   "main": "api-config.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
