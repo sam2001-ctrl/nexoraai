@@ -27,15 +27,23 @@ document.querySelectorAll('[data-scroll]').forEach(button => {
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 let userLocation = null;
 
-if ('geolocation' in navigator) {
-  navigator.geolocation.getCurrentPosition(
-    position => {
-      userLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
-    },
-    () => { /* denied or unavailable - the server will ask for a city instead */ },
-    { timeout: 8000 },
-  );
+function requestUserLocation() {
+  if (!('geolocation' in navigator)) return Promise.resolve(null);
+  return new Promise(resolve => {
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        userLocation = { lat: position.coords.latitude, lon: position.coords.longitude };
+        resolve(userLocation);
+      },
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  });
 }
+
+// Populate location quietly on load. The weather quick action below asks
+// again from a user click if the browser has not granted access yet.
+requestUserLocation();
 
 /* ------------------------------------------------------------------ chat */
 
@@ -195,10 +203,15 @@ promptInput.addEventListener('keydown', event => {
 });
 
 document.querySelectorAll('.suggestion').forEach(button => {
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
+    const isWeatherSuggestion = /weather/i.test(button.textContent);
     promptInput.value = button.textContent;
     promptInput.focus();
     promptInput.dispatchEvent(new Event('input'));
+    if (isWeatherSuggestion) {
+      if (!userLocation) await requestUserLocation();
+      chatForm.requestSubmit();
+    }
   });
 });
 
