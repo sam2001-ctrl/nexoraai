@@ -213,8 +213,42 @@ def fetch_weather(lat, lon):
     return data.get("current", {})
 
 
+def fetch_weather_fallback(place_name):
+    """Fetch current weather from wttr.in when Open-Meteo is unreachable.
+
+    This fallback needs a city name and no API key. It keeps weather replies
+    working if one provider blocks or temporarily rejects the server host.
+    """
+    if not place_name:
+        return None
+    url = f"https://wttr.in/{quote(place_name, safe='')}?format=j1"
+    with urlopen(Request(url, headers={"User-Agent": "Nexora/1.0"}), timeout=12) as response:
+        data = json.loads(response.read())
+    current = (data.get("current_condition") or [{}])[0]
+    if not current:
+        return None
+    condition = ((current.get("weatherDesc") or [{}])[0].get("value")) or "mixed conditions"
+    location = ((data.get("nearest_area") or [{}])[0].get("areaName") or [{}])[0].get("value") or place_name
+    temp = current.get("temp_C")
+    feels_like = current.get("FeelsLikeC")
+    wind = current.get("windspeedKmph")
+    if temp is None or feels_like is None or wind is None:
+        return None
+    return f"It's {condition.lower()} in {location} right now, {temp}°C (feels like {feels_like}°C), wind {wind} km/h."
+
+
 def answer_weather(lat, lon, place_name):
-    current = fetch_weather(lat, lon)
+    try:
+        current = fetch_weather(lat, lon)
+    except Exception as primary_error:
+        try:
+            fallback = fetch_weather_fallback(place_name)
+        except Exception as fallback_error:
+            print(f"[Nexora] Weather providers failed: Open-Meteo={primary_error}; wttr.in={fallback_error}")
+            raise
+        if fallback:
+            return fallback
+        raise primary_error
     if not current:
         return None
     condition = WEATHER_CODES.get(current.get("weather_code"), "mixed conditions")
