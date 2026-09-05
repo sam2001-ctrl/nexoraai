@@ -228,22 +228,34 @@ def answer_weather(lat, lon, place_name):
     )
 
 
-def try_answer_live_question(message, context):
+def try_answer_live_question(message, context, is_weather_location_follow_up=False):
     """Return a direct answer string if this is a time/date/weather
     question we can answer ourselves, otherwise None (fall through to the
     language model)."""
     if TIME_PATTERN.search(message):
         return answer_time_or_date(message, context.get("timezone"))
 
-    if WEATHER_PATTERN.search(message):
+    if WEATHER_PATTERN.search(message) or is_weather_location_follow_up:
         lat, lon = context.get("lat"), context.get("lon")
         place_name = context.get("place")
         if lat is None or lon is None:
-            city_match = re.search(r"weather (?:in|at|for)\s+([a-zA-Z\s]+)", message, re.IGNORECASE)
-            if city_match:
+            # Accept natural forms such as "weather in Hapur", "weather
+            # right now in Hapur", and "forecast today for Hapur".
+            city_match = re.search(
+                r"\b(?:weather|forecast)(?:\s+(?:right now|today|currently|now))*"
+                r"\s+(?:in|at|for|of)\s+([a-zA-Z][a-zA-Z\s-]*)",
+                message,
+                re.IGNORECASE,
+            )
+            # A user can reply with just a city (for example, "Hapur") after
+            # the assistant has asked for their weather location.
+            city_name = city_match.group(1).strip() if city_match else (
+                message.strip() if is_weather_location_follow_up else ""
+            )
+            if city_name:
                 city_name = re.split(
                     r"\s+(?:today|right now|currently|now)\b|[?.!,]",
-                    city_match.group(1).strip(),
+                    city_name,
                 )[0].strip()
                 try:
                     located = geocode_location(city_name) if city_name else None
@@ -411,7 +423,15 @@ class NexoraHandler(BaseHTTPRequestHandler):
             "lon": data.get("lon"),
             "place": data.get("place"),
         }
-        direct_answer = try_answer_live_question(last_message, live_context)
+        previous_message = messages[-2] if len(messages) >= 2 else None
+        is_weather_location_follow_up = bool(
+            previous_message
+            and previous_message["role"] == "assistant"
+            and "need a location to check the weather" in previous_message["content"].lower()
+        )
+        direct_answer = try_answer_live_question(
+            last_message, live_context, is_weather_location_follow_up,
+        )
         if direct_answer:
             return self.send_json(200, {"reply": direct_answer})
 
