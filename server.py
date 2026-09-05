@@ -68,7 +68,17 @@ def request_gemini(request):
         except HTTPError as error:
             if error.code not in (429, 500, 503) or attempt == 2:
                 if error.code in (429, 500, 503):
-                    raise RuntimeError("Gemini is temporarily busy. Please try again in a moment.") from error
+                    try:
+                        detail = json.loads(error.read().decode(errors="replace")).get("error", {}).get("message", "")
+                    except (ValueError, json.JSONDecodeError):
+                        detail = ""
+                    if error.code == 429:
+                        message = "Gemini request limit reached. Wait a minute, then check your Gemini API quota or billing if it continues."
+                    elif error.code == 503:
+                        message = "Gemini is temporarily at capacity. Please try again in a moment."
+                    else:
+                        message = "Gemini had a temporary service problem. Please try again in a moment."
+                    raise RuntimeError(f"{message}{f' Details: {detail}' if detail else ''}") from error
                 raise
             time.sleep(1.5 * (2 ** attempt))
 

@@ -6,6 +6,5 @@
   { reply: "your AI response" }. Set endpoint below to that backend URL.
 */
 window.NEXORA_CONFIG = {
-  endpoint: "/api/chat",
-  model: "gemini-3.6-flash"
+  endpoint: "/api/chat"
 };

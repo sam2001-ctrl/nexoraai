@@ -60,6 +60,7 @@ Text chat history is saved only in the browser on the current device. Messages a
 
 ## Troubleshooting
 
+- **Gemini request limit reached:** open [Google AI Studio rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) for the Google project that created your API key. Wait for the displayed retry period, reduce requests, or enable billing/choose a model available to your quota. The model is controlled by `GEMINI_MODEL` in `.env`; restart the server after changing it.
 - **401 from Agora:** verify `AGORA_CUSTOMER_ID` and `AGORA_CUSTOMER_SECRET`.
 - **Agent does not join:** verify that the pipeline is published, the pipeline ID is correct, and it belongs to the same Agora project as the App ID.
 - **No sound:** make sure browser microphone permission is enabled and use a secure origin or `localhost`.
