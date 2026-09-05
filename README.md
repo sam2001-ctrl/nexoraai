@@ -47,6 +47,17 @@ Nexora has two independent modes:
 - Ending the call now asks Agora to remove the agent before closing the microphone and RTC channel.
 - The former `AGORA_AGENT_TOKEN` setting is no longer used. It was being incorrectly used as both a REST credential and an RTC token.
 
+## Conversation quality
+
+- Chat answers are now instructed to be concise and structured, with a 450-token ceiling. The app also keeps only the most recent 16 messages when sending context, which prevents long sessions from becoming slow and unfocused.
+- The browser no longer runs a second speech-recognition microphone session while Agora is using the microphone. This removes a competing audio capture that can cause interruptions or duplicated captions. The unreliable live-caption panel has been removed from the voice screen.
+- Set the same concise behavior in your published Agora AI Studio pipeline's system prompt, for example: `Reply conversationally in 1–3 short sentences. Answer directly, do not repeat yourself, and pause for the user after each response.` This pipeline prompt controls the voice agent's spoken answer length.
+- For the clearest voice interaction, use headphones. Any voice assistant can hear its own reply again through external speakers when acoustic echo cancellation is not enough.
+
+## Chat history
+
+Text chat history is saved only in the browser on the current device. Messages are restored when the app is reopened and automatically removed after 30 days. The **Clear chat history** button immediately removes the saved local history. This does not save or restore Agora voice captions.
+
 ## Troubleshooting
 
 - **401 from Agora:** verify `AGORA_CUSTOMER_ID` and `AGORA_CUSTOMER_SECRET`.

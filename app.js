@@ -2,10 +2,12 @@ const config = window.NEXORA_CONFIG || {};
 const AGORA_SERVER = window.location.origin;
 const AGORA_CHANNEL = `nexora-${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`;
 const AGORA_UID = Math.floor(Math.random() * 1_000_000) + 1;
-let agoraClient = null, microphoneTrack = null, agoraAgentId = null, isConnectingAgora = false, speechRecognition = null, usingAgoraCaptions = false;
+let agoraClient = null, microphoneTrack = null, agoraAgentId = null, isConnectingAgora = false;
+let chatRequest = null, isSendingChat = false;
 const remoteAudioTracks = new Map();
-const captionItems = new Map();
 const history = [];
+const HISTORY_STORAGE_KEY = 'nexora-chat-history-v1';
+const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 const chat = document.querySelector('#chat');
 const form = document.querySelector('#chatForm');
@@ -13,12 +15,15 @@ const input = document.querySelector('#promptInput');
 const voiceButton = document.querySelector('#voiceButton');
 const voiceButtonText = document.querySelector('#voiceButtonText');
 const voiceState = document.querySelector('#voiceState');
-const captions = document.querySelector('#voiceCaptions');
-const captionIndicator = document.querySelector('#captionIndicator');
 const statusText = document.querySelector('#statusText');
 const modePicker = document.querySelector('#modePicker');
 const chatMode = document.querySelector('#chatMode');
 const voiceMode = document.querySelector('#voiceMode');
+const clearHistoryButton = document.createElement('button');
+clearHistoryButton.type = 'button';
+clearHistoryButton.className = 'clear-history-button';
+clearHistoryButton.textContent = 'Clear chat history';
+document.querySelector('#chatMode .screen-heading').append(clearHistoryButton);
 
 function selectMode(mode) {
   modePicker.hidden = true;
@@ -40,19 +45,66 @@ document.querySelectorAll('[data-mode]').forEach(button => button.addEventListen
 document.querySelectorAll('[data-back]').forEach(button => button.addEventListener('click', returnHome));
 document.querySelector('#homeButton').addEventListener('click', event => { event.preventDefault(); returnHome(); });
 
-function addMessage(content, role = 'assistant', extra = '') {
+function addMessage(content, role = 'assistant', extra = '', shouldScroll = true) {
   const message = document.createElement('article');
   message.className = `message ${role} ${extra}`;
   message.innerHTML = role === 'assistant' ? '<div class="avatar">N</div><div class="bubble"></div>' : '<div class="bubble"></div>';
   message.querySelector('.bubble').textContent = content;
   chat.append(message);
-  message.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  if (shouldScroll) message.scrollIntoView({ behavior: 'smooth', block: 'end' });
   return message;
 }
 
+function showWelcomeMessage() {
+  addMessage('Welcome to Nexora. What would you like to explore?', 'assistant', '', false);
+}
+
+function saveHistory() {
+  try {
+    const cutoff = Date.now() - HISTORY_RETENTION_MS;
+    const activeHistory = history.filter(message => message.createdAt >= cutoff);
+    history.splice(0, history.length, ...activeHistory);
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(activeHistory));
+  } catch (error) {
+    console.warn('Could not save chat history:', error);
+  }
+}
+
+function restoreHistory() {
+  try {
+    const storedHistory = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
+    const cutoff = Date.now() - HISTORY_RETENTION_MS;
+    const activeHistory = Array.isArray(storedHistory) ? storedHistory.filter(message =>
+      (message.role === 'user' || message.role === 'assistant') &&
+      typeof message.content === 'string' &&
+      Number.isFinite(message.createdAt) && message.createdAt >= cutoff,
+    ) : [];
+    history.push(...activeHistory);
+    chat.replaceChildren();
+    if (history.length) history.forEach(message => addMessage(message.content, message.role, '', false));
+    else showWelcomeMessage();
+    saveHistory();
+  } catch (error) {
+    console.warn('Could not restore chat history:', error);
+    chat.replaceChildren();
+    showWelcomeMessage();
+  }
+}
+
+function clearHistory() {
+  history.splice(0, history.length);
+  localStorage.removeItem(HISTORY_STORAGE_KEY);
+  chat.replaceChildren();
+  showWelcomeMessage();
+}
+
+restoreHistory();
+clearHistoryButton.addEventListener('click', clearHistory);
+
 async function getReply(prompt) {
   if (!config.endpoint) return `I’m in demo mode. Connect your endpoint in api-config.js to send: “${prompt}”.`;
-  const response = await fetch(config.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: config.model, messages: history }) });
+  chatRequest = new AbortController();
+  const response = await fetch(config.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: chatRequest.signal, body: JSON.stringify({ model: config.model, messages: history.slice(-16) }) });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Your AI endpoint returned an error.');
   return data.reply || data.message || data.choices?.[0]?.message?.content || 'Your endpoint returned no reply.';
@@ -60,10 +112,13 @@ async function getReply(prompt) {
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
+  if (isSendingChat) return;
   const prompt = input.value.trim();
   if (!prompt) return;
+  isSendingChat = true;
   addMessage(prompt, 'user');
-  history.push({ role: 'user', content: prompt });
+  history.push({ role: 'user', content: prompt, createdAt: Date.now() });
+  saveHistory();
   input.value = '';
   input.style.height = 'auto';
   const pending = addMessage('Thinking', 'assistant', 'thinking');
@@ -72,83 +127,26 @@ form.addEventListener('submit', async event => {
     const reply = await getReply(prompt);
     pending.remove();
     addMessage(reply);
-    history.push({ role: 'assistant', content: reply });
+    history.push({ role: 'assistant', content: reply, createdAt: Date.now() });
+    saveHistory();
   } catch (error) {
     pending.remove();
-    addMessage(error.message || 'Something went wrong. Please try again.');
+    if (error.name !== 'AbortError') addMessage(error.message || 'Something went wrong. Please try again.');
+  } finally {
+    chatRequest = null;
+    isSendingChat = false;
+    statusText.textContent = 'Gemini chat';
   }
-  statusText.textContent = 'Gemini chat';
 });
 
 input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 130)}px`; });
 document.querySelectorAll('.suggestion').forEach(button => button.addEventListener('click', () => { input.value = button.textContent; input.focus(); }));
 
-function addCaption(role, content) {
-  if (!content?.trim()) return;
-  const item = document.createElement('div');
-  item.className = `caption ${role}`;
-  const label = role === 'user' ? 'You' : role === 'assistant' ? 'Nexora' : 'System';
-  item.innerHTML = `<span>${label}</span><p></p>`;
-  item.querySelector('p').textContent = content.trim();
-  captions.append(item);
-  captions.scrollTop = captions.scrollHeight;
-  return item;
-}
-
 function setVoiceUi(live) {
   voiceButton.classList.toggle('listening', live);
   voiceButtonText.textContent = live ? 'End conversation' : 'Start conversation';
   voiceState.textContent = live ? 'Listening and connected' : 'Ready when you are';
-  captionIndicator.textContent = live ? 'LIVE' : 'WAITING';
   statusText.textContent = live ? 'Voice conversation live' : 'Voice mode ready';
-}
-
-function startSpeechCaptions() {
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition || speechRecognition) return;
-  speechRecognition = new Recognition();
-  speechRecognition.continuous = true;
-  speechRecognition.interimResults = false;
-  speechRecognition.lang = navigator.language || 'en-US';
-  speechRecognition.onresult = event => {
-    for (let index = event.resultIndex; index < event.results.length; index += 1) {
-      if (event.results[index].isFinal) addCaption('user', event.results[index][0].transcript);
-    }
-  };
-  speechRecognition.onend = () => { if (agoraClient) speechRecognition?.start(); };
-  speechRecognition.onerror = event => { if (event.error !== 'no-speech' && event.error !== 'aborted') console.warn('Captioning error:', event.error); };
-  speechRecognition.start();
-}
-
-function stopSpeechCaptions() {
-  if (!speechRecognition) return;
-  speechRecognition.onend = null;
-  speechRecognition.stop();
-  speechRecognition = null;
-}
-
-function handleAgentCaption(uid, data) {
-  const raw = new TextDecoder().decode(data);
-  try {
-    const message = JSON.parse(raw);
-    const text = message.text || message.content || message.message || message.transcript;
-    if (!text) return;
-    if (message.object?.endsWith('.transcription')) {
-      usingAgoraCaptions = true;
-      stopSpeechCaptions();
-      const role = message.object.startsWith('user.') ? 'user' : 'assistant';
-      const key = message.message_id || `${message.object}-${message.turn_id || Date.now()}`;
-      const existing = captionItems.get(key);
-      if (existing) {
-        existing.querySelector('p').textContent = text;
-      } else {
-        captionItems.set(key, addCaption(role, text));
-      }
-      captions.scrollTop = captions.scrollHeight;
-      return;
-    }
-    addCaption(message.role === 'user' ? 'user' : 'assistant', text);
-  } catch { addCaption('assistant', raw); }
 }
 
 async function getJson(url, options) {
@@ -185,20 +183,16 @@ async function connectAgora() {
     agoraClient.on('user-published', (user, mediaType) => playRemoteAudio(user, mediaType).catch(error => console.error('Remote audio error:', error)));
     agoraClient.on('user-unpublished', (user, mediaType) => { if (mediaType === 'audio') stopRemoteAudio(user); });
     agoraClient.on('user-left', stopRemoteAudio);
-    agoraClient.on('stream-message', handleAgentCaption);
     await agoraClient.join(tokenData.appId, tokenData.channel, tokenData.token, tokenData.uid);
     microphoneTrack = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, AGC: true, ANS: true });
     await agoraClient.publish([microphoneTrack]);
     const agentResult = await getJson(`${AGORA_SERVER}/api/ai/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: tokenData.channel, uid: tokenData.uid }) });
     agoraAgentId = agentResult.agent?.agent_id || agentResult.agent?.agentId;
     if (!agoraAgentId) throw new Error('Agora started an agent but did not return its ID.');
-    usingAgoraCaptions = false;
-    addCaption('system', 'Connected to Agora. Speak naturally to begin.');
     setVoiceUi(true);
-    startSpeechCaptions();
   } catch (error) {
     console.error('Agora connection error:', error);
-    addCaption('system', `Voice connection failed: ${error.message}`);
+    voiceState.textContent = `Connection failed: ${error.message}`;
     await disconnectAgora(false);
   } finally {
     isConnectingAgora = false;
@@ -209,8 +203,6 @@ async function connectAgora() {
 async function disconnectAgora(stopAgent = true) {
   const agentId = agoraAgentId;
   agoraAgentId = null;
-  stopSpeechCaptions();
-  usingAgoraCaptions = false;
   if (stopAgent && agentId) { try { await getJson(`${AGORA_SERVER}/api/ai/stop`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId }) }); } catch (error) { console.warn('Could not stop Agora agent:', error); } }
   if (microphoneTrack) { microphoneTrack.stop(); microphoneTrack.close(); microphoneTrack = null; }
   for (const track of remoteAudioTracks.values()) track.stop();
@@ -220,4 +212,4 @@ async function disconnectAgora(stopAgent = true) {
 }
 
 voiceButton.addEventListener('click', () => agoraClient ? disconnectAgora() : connectAgora());
-window.addEventListener('beforeunload', () => { stopSpeechCaptions(); microphoneTrack?.close(); agoraClient?.leave(); });
+window.addEventListener('beforeunload', () => { microphoneTrack?.close(); agoraClient?.leave(); });

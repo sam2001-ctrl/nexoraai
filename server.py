@@ -19,6 +19,11 @@ AGORA_PIPELINE_ID = os.environ.get("AGORA_PIPELINE_ID")
 AGORA_CHANNEL = os.environ.get("AGORA_CHANNEL", "nexora-demo")
 AGORA_AGENT_UID = int(os.environ.get("AGORA_AGENT_UID", "14297"))
 PORT = int(os.environ.get("PORT", "8000"))
+CHAT_INSTRUCTIONS = """You are Nexora, a clear and helpful assistant. Answer the user's request directly.
+Keep the default response concise: usually 3 to 6 sentences or up to 5 short bullet points.
+Use a short heading or bullets only when they make the answer easier to scan. Do not repeat the question,
+pad the response with introductions or conclusions, or give multiple alternatives unless asked. Ask one brief
+clarifying question only when it is necessary. Give detailed, long-form answers only when the user requests them."""
 STATIC_FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/index.html": ("index.html", "text/html; charset=utf-8"),
@@ -104,7 +109,8 @@ class NexoraHandler(BaseHTTPRequestHandler):
             contents = [{"role": "model" if m.get("role") == "assistant" else "user", "parts": [{"text": m["content"]}]} for m in data.get("messages", []) if m.get("content")]
             if not contents: return self.send_json(400, {"error": "Please send at least one message."})
             model = data.get("model") or GEMINI_MODEL
-            request = Request(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}", data=json.dumps({"contents": contents}).encode(), headers={"Content-Type": "application/json"}, method="POST")
+            payload = {"systemInstruction": {"parts": [{"text": CHAT_INSTRUCTIONS}]}, "contents": contents, "generationConfig": {"maxOutputTokens": 450, "temperature": 0.45}}
+            request = Request(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}, method="POST")
             result = request_gemini(request)
             parts = result.get("candidates", [{}])[0].get("content", {}).get("parts", [])
             return self.send_json(200, {"reply": "".join(p.get("text", "") for p in parts) or "I couldn't generate a response."})
