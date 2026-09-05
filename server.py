@@ -272,34 +272,39 @@ def try_answer_live_question(message, context, is_weather_location_follow_up=Fal
     if WEATHER_PATTERN.search(message) or is_weather_location_follow_up:
         lat, lon = context.get("lat"), context.get("lon")
         place_name = context.get("place")
+        # Accept natural forms such as "weather in Hapur", "weather right
+        # now in Hapur", and the common shortened form "weather right now
+        # Hapur". A stated city always takes precedence over browser location.
+        city_match = re.search(
+            r"\b(?:weather|forecast)(?:\s+(?:right now|today|currently|now))*"
+            r"\s+(?:in|at|for|of)\s+([a-zA-Z][a-zA-Z\s-]*)"
+            r"|\b(?:weather|forecast)\s+(?:right now|today|currently|now)\s+"
+            r"([a-zA-Z][a-zA-Z\s-]*)",
+            message,
+            re.IGNORECASE,
+        )
+        # A user can also reply with just a city after the assistant asks for
+        # their weather location.
+        city_name = ((city_match.group(1) or city_match.group(2)).strip() if city_match else (
+            message.strip() if is_weather_location_follow_up else ""
+        ))
+        if city_name:
+            city_name = re.split(
+                r"\s+(?:today|right now|currently|now)\b|[?.!,]",
+                city_name,
+            )[0].strip()
+            # Keep the stated name for the fallback provider even if the
+            # primary geocoding service is unavailable.
+            place_name = city_name or place_name
+            try:
+                located = geocode_location(city_name) if city_name else None
+            except Exception:
+                located = None
+            if located:
+                lat, lon, place_name = located
         if lat is None or lon is None:
-            # Accept natural forms such as "weather in Hapur", "weather
-            # right now in Hapur", and "forecast today for Hapur".
-            city_match = re.search(
-                r"\b(?:weather|forecast)(?:\s+(?:right now|today|currently|now))*"
-                r"\s+(?:in|at|for|of)\s+([a-zA-Z][a-zA-Z\s-]*)",
-                message,
-                re.IGNORECASE,
-            )
-            # A user can reply with just a city (for example, "Hapur") after
-            # the assistant has asked for their weather location.
-            city_name = city_match.group(1).strip() if city_match else (
-                message.strip() if is_weather_location_follow_up else ""
-            )
-            if city_name:
-                city_name = re.split(
-                    r"\s+(?:today|right now|currently|now)\b|[?.!,]",
-                    city_name,
-                )[0].strip()
-                try:
-                    located = geocode_location(city_name) if city_name else None
-                except Exception:
-                    located = None
-                if located:
-                    lat, lon, place_name = located
-            if lat is None or lon is None:
-                return ("I need a location to check the weather - share your city, "
-                        "or allow location access in your browser, and ask again.")
+            return ("I need a location to check the weather - share your city, "
+                    "or allow location access in your browser, and ask again.")
         try:
             answer = answer_weather(lat, lon, place_name)
         except Exception:
