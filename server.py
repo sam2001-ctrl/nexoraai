@@ -2,7 +2,7 @@
 Nexora AI local server.
 
 Two independent jobs live here:
-  1. /api/chat        - proxies text chat to Groq (or Gemini) and answers a
+  1. /api/chat        - proxies text chat to OpenRouter, Groq, or Gemini and answers a
                          few "live" questions (time, date, weather) directly,
                          without waiting on the language model.
   2. /api/ai/start,
@@ -39,13 +39,18 @@ load_dotenv()
 # Configuration
 # ---------------------------------------------------------------------------
 
-CHAT_PROVIDER = os.environ.get("CHAT_PROVIDER", "groq").lower()
+CHAT_PROVIDER = os.environ.get("CHAT_PROVIDER", "openrouter").lower()
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+# Lets OpenRouter select an available no-cost model. Set this to a specific
+# model ID later if you want consistent responses from one paid model.
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openrouter/free")
 
 AGORA_APP_ID = os.environ.get("AGORA_APP_ID")
 AGORA_APP_CERTIFICATE = os.environ.get("AGORA_APP_CERTIFICATE")
@@ -414,7 +419,9 @@ class NexoraHandler(BaseHTTPRequestHandler):
             return self.send_json(200, {"reply": self.ask_groq(messages)})
         if CHAT_PROVIDER == "gemini":
             return self.send_json(200, {"reply": self.ask_gemini(messages, data.get("model"))})
-        raise ValueError("CHAT_PROVIDER must be either 'groq' or 'gemini'")
+        if CHAT_PROVIDER == "openrouter":
+            return self.send_json(200, {"reply": self.ask_openrouter(messages, data.get("model"))})
+        raise ValueError("CHAT_PROVIDER must be 'openrouter', 'groq', or 'gemini'")
 
     def ask_groq(self, messages):
         if not GROQ_API_KEY:
@@ -457,6 +464,25 @@ class NexoraHandler(BaseHTTPRequestHandler):
         result = request_ai(request, "Gemini")
         parts = result.get("candidates", [{}])[0].get("content", {}).get("parts", [])
         reply = "".join(p.get("text", "") for p in parts)
+        return reply or "I couldn't generate a response."
+
+    def ask_openrouter(self, messages, requested_model):
+        if not OPENROUTER_API_KEY:
+            raise ValueError("OPENROUTER_API_KEY is missing from the server environment")
+        payload = {
+            "model": requested_model or OPENROUTER_MODEL,
+            "messages": [{"role": "system", "content": CHAT_INSTRUCTIONS}, *messages],
+            "max_tokens": 450,
+            "temperature": 0.4,
+        }
+        request = Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+            method="POST",
+        )
+        result = request_ai(request, "OpenRouter")
+        reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
         return reply or "I couldn't generate a response."
 
 

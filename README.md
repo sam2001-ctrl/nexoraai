@@ -7,7 +7,7 @@ One page, two live modes, no mode-switching required:
 - A **console** section near the bottom holds two always-visible windows:
   a text chat window and a live voice window. Both talk to the same local
   Python server.
-- Text chat calls Groq (or Gemini) through the local server.
+- Text chat calls OpenRouter, Groq, or Gemini through the local server.
 - The voice window starts and stops an Agora Conversational AI session:
   it joins the browser, starts your published Agora AI Studio pipeline,
   plays the agent's remote audio, and shuts the agent down when the call
@@ -40,12 +40,16 @@ and screenshots too.
    this file online):
 
    ```dotenv
-   # Text chat (Groq free tier)
-   CHAT_PROVIDER=groq
+   # Text chat (OpenRouter's free model router)
+   CHAT_PROVIDER=openrouter
+   OPENROUTER_API_KEY=your_openrouter_key
+   OPENROUTER_MODEL=openrouter/free
+
+   # Optional Groq alternative
    GROQ_API_KEY=your_groq_key
    GROQ_MODEL=openai/gpt-oss-20b
 
-   # Optional Gemini fallback
+   # Optional Gemini alternative
    GEMINI_API_KEY=your_gemini_key
    GEMINI_MODEL=gemini-2.5-flash
 
@@ -146,19 +150,46 @@ dependencies, run `python server.py`, and check `/health`.
 5. Redeploy, then open the Render Web Service URL. Do not use a separate
    GitHub Pages or Render Static Site URL for this app.
 
-### Add the Groq key in Render
+### Add the OpenRouter key in Render
 
 In your Render service, open **Environment** and add these variables:
 
 ```text
-CHAT_PROVIDER=groq
-GROQ_API_KEY=your_actual_groq_key
-GROQ_MODEL=openai/gpt-oss-20b
+CHAT_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_actual_openrouter_key
+OPENROUTER_MODEL=openrouter/free
 ```
 
 Save the variables and choose **Manual Deploy → Deploy latest commit**.
 Keep the key in Render only; never add it to `api-config.js`, commit it
 to GitHub, or send it in chat.
+
+## Deploy to Railway
+
+The included `railway.toml` tells Railway to install the Python
+requirements, start `server.py`, and verify the `/health` endpoint. The
+server already uses Railway's supplied `PORT` value, so no port setting is
+needed.
+
+1. Push this folder to a GitHub repository. Do not commit `.env`.
+2. In Railway, select **New Project → Deploy from GitHub Repo**, then choose
+   that repository.
+3. In the new service's **Variables** tab, add the same values used in your
+   local `.env`. For OpenRouter chat, the minimum required values are:
+
+   ```text
+   CHAT_PROVIDER=openrouter
+   OPENROUTER_API_KEY=your_actual_openrouter_key
+   OPENROUTER_MODEL=openrouter/free
+   ```
+
+   Add the Agora variables too if you want the voice feature to work.
+4. Once the deployment succeeds, open **Settings → Networking → Generate
+   Domain**. Use that Railway domain for the app.
+
+If the Railway logs show `Chat provider: openrouter`, the new provider is
+active. The `openrouter/free` model automatically chooses an available free
+model; free usage has provider rate limits and availability can vary.
 
 ## Troubleshooting
 

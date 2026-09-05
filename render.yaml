@@ -9,7 +9,11 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: CHAT_PROVIDER
-        value: groq
+        value: openrouter
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: openrouter/free
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
