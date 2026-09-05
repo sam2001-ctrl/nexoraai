@@ -278,7 +278,24 @@ def request_ai(request, provider_name):
                     else:
                         message = f"{provider_name} had a temporary service problem. Please try again in a moment."
                     raise RuntimeError(f"{message}{f' Details: {detail}' if detail else ''}") from error
-                raise
+            # Do not expose an upstream HTML/proxy response such as "error
+            # code: 1010" in the chat.  1010 is normally an access denial
+            # from an upstream security layer, not something the visitor can
+            # correct by rewording their message.
+            if error.code == 1010:
+                raise RuntimeError(
+                    f"{provider_name} denied this server's request (error 1010). "
+                    "Try again shortly; if it continues, allow this server/IP in the provider's security settings or use another chat provider."
+                ) from error
+
+            try:
+                detail = json.loads(error.read().decode(errors="replace")).get("error", {}).get("message", "")
+            except (ValueError, json.JSONDecodeError):
+                detail = ""
+            raise RuntimeError(
+                f"{provider_name} could not complete the request (status {error.code}). "
+                f"{detail or 'Please try again in a moment.'}"
+            ) from error
             time.sleep(1.5 * (2 ** attempt))
 
 

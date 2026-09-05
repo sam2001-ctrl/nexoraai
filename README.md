@@ -125,10 +125,9 @@ different endpoint.
 
 ## Chat history
 
-Text chat history is saved only in the browser on the current device.
-Messages are restored when the app is reopened and automatically removed
-after 30 days. The **Clear chat history** button immediately removes the
-saved local history.
+Text chat is cleared automatically whenever the page is refreshed or opened,
+so each visit begins with a new conversation. The **Clear chat history**
+button immediately clears the current conversation too.
 
 ## Deploy to Render
 

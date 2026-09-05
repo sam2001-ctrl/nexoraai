@@ -114,7 +114,9 @@ function clearHistory() {
   showWelcomeMessage();
 }
 
-restoreHistory();
+// A refresh starts a new conversation.  Clear the persisted transcript before
+// rendering anything so a message from a previous visit cannot briefly appear.
+clearHistory();
 clearHistoryButton.addEventListener('click', clearHistory);
 
 async function getReply() {
