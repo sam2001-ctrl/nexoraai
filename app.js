@@ -238,7 +238,7 @@ function setVoiceUi(live) {
   voiceState.textContent = live ? 'Listening and connected' : 'Ready when you are';
   voiceStatus.classList.toggle('live', live);
   voiceStatus.innerHTML = `<i class="dot"></i>${live ? 'Live' : 'Ready'}`;
-  setGlobeActive('voiceGlobe', live);
+  voiceFace?.setState(live ? 'active' : 'idle');
 }
 
 async function getJson(url, options) {
@@ -256,18 +256,21 @@ async function playRemoteAudio(user, mediaType) {
   remoteAudioTracks.get(user.uid)?.stop();
   track.play();
   remoteAudioTracks.set(user.uid, track);
+  voiceFace?.attachAudioTrack(track.getMediaStreamTrack?.());
 }
 
 function stopRemoteAudio(user) {
   const track = remoteAudioTracks.get(user.uid) || user.audioTrack;
   track?.stop();
   remoteAudioTracks.delete(user.uid);
+  voiceFace?.detachAudioTrack();
 }
 
 async function connectAgora() {
   if (isConnectingAgora || agoraClient) return;
   isConnectingAgora = true;
   voiceButton.disabled = true;
+  voiceFace?.setState('connecting');
   try {
     voiceState.textContent = 'Connecting…';
     const tokenData = await getJson(`${AGORA_SERVER}/agora/token?channel=${encodeURIComponent(AGORA_CHANNEL)}&uid=${AGORA_UID}`);
@@ -296,6 +299,7 @@ async function connectAgora() {
   } catch (error) {
     console.error('Agora connection error:', error);
     voiceState.textContent = `Connection failed: ${error.message}`;
+    voiceFace?.setState('idle');
     await disconnectAgora(false);
   } finally {
     isConnectingAgora = false;
@@ -326,6 +330,7 @@ async function disconnectAgora(stopAgent = true) {
   }
   for (const track of remoteAudioTracks.values()) track.stop();
   remoteAudioTracks.clear();
+  voiceFace?.detachAudioTrack();
 
   if (agoraClient) {
     try {
@@ -344,12 +349,9 @@ window.addEventListener('beforeunload', () => { microphoneTrack?.close(); agoraC
 
 /* ------------------------------------------------------------------ globe
  * A small, dependency-free (beyond three.js) draggable wireframe globe.
- * Used for the hero visual and the voice console. Drag to spin manually;
- * it drifts on its own the rest of the time, and picks up a faster/brighter
- * spin while a voice call is live.
+ * Used for the hero visual only. Drag to spin manually; it drifts on its
+ * own the rest of the time.
  */
-
-const globes = new Map();
 
 function glowTexture() {
   const size = 256;
@@ -360,6 +362,22 @@ function glowTexture() {
   const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   gradient.addColorStop(0, 'rgba(139, 123, 255, 0.55)');
   gradient.addColorStop(0.5, 'rgba(69, 232, 209, 0.18)');
+  gradient.addColorStop(1, 'rgba(5, 6, 10, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
+function voiceGlowTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(30, 183, 255, 0.54)');
+  gradient.addColorStop(0.38, 'rgba(0, 126, 255, 0.28)');
+  gradient.addColorStop(0.72, 'rgba(34, 62, 167, 0.08)');
   gradient.addColorStop(1, 'rgba(5, 6, 10, 0)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
@@ -442,8 +460,6 @@ function createGlobe(canvasId) {
   observer.observe(canvas.parentElement);
   resize();
 
-  const state = { active: false, pulse: 0 };
-
   function tick() {
     requestAnimationFrame(tick);
     if (!dragging) {
@@ -453,30 +469,363 @@ function createGlobe(canvasId) {
       group.rotation.y += spinY;
       group.rotation.x = Math.max(-1.1, Math.min(1.1, group.rotation.x + spinX));
     }
-    if (state.active) {
-      state.pulse += 0.05;
-      const scale = 1 + Math.sin(state.pulse) * 0.04;
-      group.scale.set(scale, scale, scale);
-      wireMaterial.opacity = 0.75;
-    } else {
-      group.scale.set(1, 1, 1);
-      wireMaterial.opacity = 0.55;
-    }
     renderer.render(scene, camera);
   }
   tick();
-
-  globes.set(canvasId, state);
-}
-
-function setGlobeActive(canvasId, active) {
-  const state = globes.get(canvasId);
-  if (state) state.active = active;
 }
 
 if (typeof THREE !== 'undefined') {
   createGlobe('heroGlobe');
-  createGlobe('voiceGlobe');
 } else {
-  console.warn('three.js did not load - globes are skipped, everything else still works.');
+  console.warn('three.js did not load - the hero globe is skipped, everything else still works.');
+}
+
+/* ------------------------------------------------------------------ face
+ * A layered, glassy assistant orb for the voice console:
+ *   - a vivid fuchsia core with shifting light beneath its surface
+ *   - two minimal illuminated pill-shaped eyes
+ *   - a translucent glass shell and soft halo for depth
+ * Everything sits in one group, dragged like a ball - it only turns when
+ * you turn it, easing to a stop rather than spinning on its own.
+ * Three expression states:
+ *   idle       - call not connected, calm smile
+ *   connecting - handshaking with Agora, eyes glance side to side
+ *   active     - call connected; mouth opens with the remote agent's
+ *                real speaking volume (via an AnalyserNode), and eases
+ *                back to a small smile when it's quiet
+ */
+
+function createFace(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || typeof THREE === 'undefined') return null;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.z = 3.4;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  scene.add(new THREE.AmbientLight(0xc9f5ff, 0.48));
+  const keyLight = new THREE.DirectionalLight(0xe1faff, 1.25);
+  keyLight.position.set(-1.5, 2.2, 2.8);
+  scene.add(keyLight);
+  const rimLight = new THREE.PointLight(0x007cff, 1.45, 8);
+  rimLight.position.set(2, -0.8, 2.1);
+  scene.add(rimLight);
+  const cyanLight = new THREE.PointLight(0x7cecff, 0.75, 7);
+  cyanLight.position.set(-2.3, -1.4, -1.5);
+  scene.add(cyanLight);
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const FACE_R = 0.82;
+  const SHELL_R = 0.98;
+
+  // Live face texture: an offscreen 2D canvas redrawn every frame, mapped
+  // onto the inner sphere with the standard equirectangular UV, so the
+  // front of the sphere (facing the camera at rest) lines up with the face.
+  const texCanvas = document.createElement('canvas');
+  texCanvas.width = 1024;
+  texCanvas.height = 512;
+  const tctx = texCanvas.getContext('2d');
+  const faceTexture = new THREE.CanvasTexture(texCanvas);
+
+  // 1. illuminated core
+  const inner = new THREE.Mesh(
+    new THREE.SphereGeometry(FACE_R, 64, 64),
+    new THREE.MeshStandardMaterial({
+      map: faceTexture,
+      roughness: 0.22,
+      metalness: 0.13,
+      emissive: new THREE.Color(0x005ac7),
+      emissiveIntensity: 0.5,
+    }),
+  );
+  group.add(inner);
+
+  // 2. outer glass shell catches scene lights without hiding the core
+  const outerShell = new THREE.Mesh(
+    new THREE.SphereGeometry(SHELL_R, 64, 64),
+    new THREE.MeshPhongMaterial({
+      color: 0xc8f6ff,
+      transparent: true,
+      opacity: 0.15,
+      shininess: 120,
+      specular: 0xffffff,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  group.add(outerShell);
+
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: voiceGlowTexture(), transparent: true, depthWrite: false }));
+  glow.scale.set(3.9, 3.9, 1);
+  scene.add(glow);
+
+  // drag to rotate - manual only, momentum eases back to a stop rather
+  // than settling into a perpetual idle spin
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  let spinY = 0;
+  let spinX = 0;
+
+  function pointerDown(event) {
+    dragging = true;
+    const point = event.touches ? event.touches[0] : event;
+    lastX = point.clientX;
+    lastY = point.clientY;
+  }
+
+  function pointerMove(event) {
+    if (!dragging) return;
+    const point = event.touches ? event.touches[0] : event;
+    const deltaX = point.clientX - lastX;
+    const deltaY = point.clientY - lastY;
+    lastX = point.clientX;
+    lastY = point.clientY;
+    spinY = deltaX * 0.0032;
+    spinX = deltaY * 0.0032;
+    group.rotation.y += spinY;
+    group.rotation.x = Math.max(-1.1, Math.min(1.1, group.rotation.x + spinX));
+    event.preventDefault?.();
+  }
+
+  function pointerUp() {
+    dragging = false;
+  }
+
+  canvas.addEventListener('pointerdown', pointerDown);
+  canvas.addEventListener('pointermove', pointerMove);
+  window.addEventListener('pointerup', pointerUp);
+  canvas.addEventListener('touchstart', pointerDown, { passive: true });
+  canvas.addEventListener('touchmove', pointerMove, { passive: false });
+  window.addEventListener('touchend', pointerUp);
+
+  function resize() {
+    const parent = canvas.parentElement;
+    const size = Math.min(parent.clientWidth, parent.clientHeight) || parent.clientWidth || 260;
+    renderer.setSize(size, size, false);
+    camera.aspect = 1;
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(canvas.parentElement);
+  resize();
+
+  const face = {
+    state: 'idle',
+    volume: 0,
+    targetVolume: 0,
+    blinkTimer: 0,
+    nextBlinkAt: 2 + Math.random() * 3,
+    blinkClose: 0,
+    lookX: 0,
+    lookY: 0,
+    lookTimer: Math.random() * 10,
+    mouthOpen: 0,
+    time: 0,
+    analyser: null,
+    audioCtx: null,
+    dataArray: null,
+  };
+
+  function paintFace(dt) {
+    face.time += dt;
+    const W = texCanvas.width;
+    const H = texCanvas.height;
+
+    // Rich blue with moving highlights gives the core its glassy depth.
+    const gradient = tctx.createLinearGradient(0, 0, W, H);
+    gradient.addColorStop(0, '#082b74');
+    gradient.addColorStop(0.32, '#006eea');
+    gradient.addColorStop(0.62, '#12b9ff');
+    gradient.addColorStop(1, '#073280');
+    tctx.fillStyle = gradient;
+    tctx.fillRect(0, 0, W, H);
+
+    const shimmer = tctx.createRadialGradient(W * 0.2, H * 0.25, 0, W * 0.2, H * 0.25, H * 0.48);
+    shimmer.addColorStop(0, 'rgba(239, 253, 255, 0.82)');
+    shimmer.addColorStop(0.23, 'rgba(121, 226, 255, 0.32)');
+    shimmer.addColorStop(1, 'rgba(20, 176, 255, 0)');
+    tctx.fillStyle = shimmer;
+    tctx.fillRect(0, 0, W, H);
+
+    const underglow = tctx.createRadialGradient(W * 0.66, H * 0.82, 0, W * 0.66, H * 0.82, H * 0.56);
+    underglow.addColorStop(0, 'rgba(0, 48, 143, 0.8)');
+    underglow.addColorStop(1, 'rgba(0, 30, 96, 0)');
+    tctx.fillStyle = underglow;
+    tctx.fillRect(0, 0, W, H);
+
+    // front-facing point of a default-orientation sphere maps to (0.25, 0.5)
+    // in UV space - draw the face centered there so it faces the camera at rest
+    const cx = W * 0.25;
+    const cy = H * 0.5;
+    const r = H * 0.42;
+
+    // Eye position, eyelid size, and mouth all respond to the current voice
+    // state so this reads as a character, not just a static icon.
+    face.blinkTimer += dt;
+    if (face.blinkTimer >= face.nextBlinkAt) {
+      const blinkProgress = (face.blinkTimer - face.nextBlinkAt) / 0.18;
+      face.blinkClose = Math.sin(Math.min(blinkProgress, 1) * Math.PI);
+      if (blinkProgress >= 1) {
+        face.blinkTimer = 0;
+        face.nextBlinkAt = 2.2 + Math.random() * 3.8;
+        face.blinkClose = 0;
+      }
+    }
+
+    face.lookTimer += dt;
+    let targetLookX = Math.sin(face.lookTimer * 0.55) * 0.10;
+    let targetLookY = Math.cos(face.lookTimer * 0.38) * 0.045;
+    if (face.state === 'connecting') {
+      targetLookX = Math.sin(face.lookTimer * 2.2) * 0.22;
+      targetLookY = Math.cos(face.lookTimer * 1.5) * 0.10;
+    } else if (face.state === 'active') {
+      targetLookX = Math.sin(face.lookTimer * 0.9) * 0.055;
+      targetLookY = -0.035 + Math.cos(face.lookTimer * 0.65) * 0.025;
+    }
+    face.lookX += (targetLookX - face.lookX) * dt * 3.6;
+    face.lookY += (targetLookY - face.lookY) * dt * 3.6;
+
+    const eyeY = cy - r * 0.1 + face.lookY * r;
+    const eyeSpacing = r * 0.36;
+    const eyeW = r * 0.115;
+    const eyeHBase = face.state === 'connecting' ? r * 0.28 : face.state === 'active' ? r * 0.30 : r * 0.34;
+    const eyeH = Math.max(H * 0.012, eyeHBase * (1 - face.blinkClose * 0.91));
+    const activeBrightness = face.state === 'active' ? 0.9 + Math.min(0.1, face.volume * 0.1) : 0.94;
+
+    [-1, 1].forEach(side => {
+      const ex = cx + side * eyeSpacing + face.lookX * r;
+      tctx.save();
+      tctx.shadowColor = 'rgba(222, 250, 255, 0.95)';
+      tctx.shadowBlur = r * 0.22;
+      tctx.beginPath();
+      tctx.ellipse(ex, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
+      tctx.fillStyle = `rgba(255, 249, 254, ${activeBrightness})`;
+      tctx.fill();
+      tctx.restore();
+    });
+
+    if (face.state === 'connecting') {
+      // Asymmetric brows and a small round mouth make the temporary
+      // connection state read as curious/confused rather than broken.
+      [-1, 1].forEach(side => {
+        const ex = cx + side * eyeSpacing + face.lookX * r;
+        const browLift = side === -1 ? r * 0.16 : 0;
+        tctx.beginPath();
+        tctx.moveTo(ex - eyeW * 1.25, eyeY - eyeHBase * 1.45 - browLift);
+        tctx.quadraticCurveTo(ex, eyeY - eyeHBase * 1.7 - browLift, ex + eyeW * 1.25, eyeY - eyeHBase * 1.45 - browLift);
+        tctx.strokeStyle = 'rgba(230, 252, 255, 0.88)';
+        tctx.lineWidth = Math.max(3, H * 0.014);
+        tctx.lineCap = 'round';
+        tctx.stroke();
+      });
+      tctx.beginPath();
+      tctx.ellipse(cx, cy + r * 0.37, r * 0.105, r * 0.14, 0, 0, Math.PI * 2);
+      tctx.fillStyle = 'rgba(0, 49, 126, 0.66)';
+      tctx.fill();
+    }
+
+    // A broader smile when active makes the conversation state feel happy;
+    // it opens a little further in rhythm with the speaker's voice.
+    const smileTarget = face.state === 'active'
+      ? 0.16 + Math.min(0.28, face.volume * 0.34)
+      : 0;
+    face.mouthOpen += (smileTarget - face.mouthOpen) * dt * 7;
+
+    const mouthY = cy + r * 0.37;
+    const mouthHalfW = face.state === 'active' ? r * 0.29 : r * 0.24;
+    const smileDepth = r * (0.105 + face.mouthOpen * 0.18);
+
+    if (face.mouthOpen > 0.12 && face.state !== 'connecting') {
+      tctx.beginPath();
+      tctx.ellipse(cx, mouthY + smileDepth * 0.34, mouthHalfW * 0.68, face.mouthOpen * r * 0.18, 0, 0, Math.PI * 2);
+      tctx.fillStyle = 'rgba(0, 49, 126, 0.62)';
+      tctx.fill();
+    }
+
+    if (face.state !== 'connecting') {
+      tctx.save();
+      tctx.shadowColor = 'rgba(202, 247, 255, 0.95)';
+      tctx.shadowBlur = r * 0.13;
+      tctx.beginPath();
+      tctx.moveTo(cx - mouthHalfW, mouthY);
+      tctx.quadraticCurveTo(cx, mouthY + smileDepth, cx + mouthHalfW, mouthY);
+      tctx.strokeStyle = 'rgba(237, 253, 255, 0.96)';
+      tctx.lineWidth = Math.max(3, H * 0.016);
+      tctx.lineCap = 'round';
+      tctx.stroke();
+      tctx.restore();
+    }
+
+    faceTexture.needsUpdate = true;
+  }
+
+  let last = performance.now();
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+
+    face.volume += (face.targetVolume - face.volume) * 0.3;
+    if (face.analyser) {
+      face.analyser.getByteFrequencyData(face.dataArray);
+      let sum = 0;
+      for (let i = 0; i < face.dataArray.length; i++) sum += face.dataArray[i];
+      face.targetVolume = Math.min(1, sum / face.dataArray.length / 90);
+    } else {
+      face.targetVolume = 0;
+    }
+    paintFace(dt);
+    const pulseStrength = face.state === 'active' ? 0.018 + face.volume * 0.025 : 0.008;
+    const pulse = 1 + Math.sin(now * (face.state === 'active' ? 0.008 : 0.002)) * pulseStrength;
+    glow.scale.set(3.9 * pulse, 3.9 * pulse, 1);
+
+    // manual rotation only - momentum decays to a full stop, no idle drift
+    if (!dragging) {
+      spinY += (0 - spinY) * 0.06;
+      spinX += (0 - spinX) * 0.06;
+      group.rotation.y += spinY;
+      group.rotation.x = Math.max(-1.1, Math.min(1.1, group.rotation.x + spinX));
+    }
+
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(loop);
+
+  return {
+    setState(state) { face.state = state; },
+    attachAudioTrack(mediaStreamTrack) {
+      if (!mediaStreamTrack) return;
+      try {
+        this.detachAudioTrack();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContextClass();
+        const source = audioCtx.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        face.audioCtx = audioCtx;
+        face.analyser = analyser;
+        face.dataArray = new Uint8Array(analyser.frequencyBinCount);
+      } catch (error) {
+        console.warn('Could not analyze remote audio for face animation:', error);
+      }
+    },
+    detachAudioTrack() {
+      face.analyser = null;
+      face.dataArray = null;
+      face.targetVolume = 0;
+      face.audioCtx?.close();
+      face.audioCtx = null;
+    },
+  };
+}
+
+const voiceFace = typeof THREE !== 'undefined' ? createFace('voiceFace') : null;
+if (typeof THREE === 'undefined') {
+  console.warn('three.js did not load - the voice face is skipped, everything else still works.');
 }
