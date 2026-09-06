@@ -1,0 +1,8 @@
+[build]
+builder = "railpack"
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+startCommand = "python server.py"
+healthcheckPath = "/health"
+healthcheckTimeout = 100

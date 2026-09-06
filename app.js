@@ -138,7 +138,7 @@ function addMessage(content, role = 'assistant', extraClass = '', shouldScroll =
 }
 
 function showWelcomeMessage() {
-  addMessage('Welcome to Nexora. What would you like to explore?', 'assistant', '', false);
+  addMessage('Welcome to Nexora. What would you like to explore?', 'assistant', 'welcome', false);
 }
 
 function saveHistory() {
@@ -247,7 +247,7 @@ chatForm.addEventListener('submit', async event => {
     saveHistory();
   } catch (error) {
     pending.remove();
-    if (error.name !== 'AbortError') addMessage(error.message || 'Something went wrong. Please try again.');
+    if (error.name !== 'AbortError') addMessage(error.message || 'Something went wrong. Please try again.', 'assistant', 'error');
   } finally {
     chatRequest = null;
     isSendingChat = false;

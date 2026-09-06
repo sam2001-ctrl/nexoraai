@@ -344,6 +344,9 @@ def request_ai(request, provider_name):
             with urlopen(request, timeout=90) as response:
                 return json.loads(response.read())
         except HTTPError as error:
+            if error.code in (429, 500, 503) and attempt < 2:
+                time.sleep(1.5 * (2 ** attempt))
+                continue
             if error.code not in (429, 500, 503) or attempt == 2:
                 if error.code in (429, 500, 503):
                     try:
@@ -375,7 +378,16 @@ def request_ai(request, provider_name):
                 f"{provider_name} could not complete the request (status {error.code}). "
                 f"{detail or 'Please try again in a moment.'}"
             ) from error
-            time.sleep(1.5 * (2 ** attempt))
+def usable_ai_reply(reply):
+    """Reject empty and provider-metadata-only replies before they reach students."""
+    clean = re.sub(r"\s+", " ", str(reply or "")).strip()
+    if len(clean) < 3:
+        return False
+    lower = clean.lower()
+    return not (
+        ("user safety:" in lower and "response safety:" in lower)
+        or lower in {"safe", "blocked", "refused", "i couldn't generate a response."}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -590,7 +602,16 @@ class NexoraHandler(BaseHTTPRequestHandler):
         )
         result = request_ai(request, "OpenRouter")
         reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-        return reply or "I couldn't generate a response."
+        # Free routing can return safety metadata instead of a completion.
+        # Retry once and never display that internal provider text to students.
+        if not usable_ai_reply(reply):
+            result = request_ai(request, "OpenRouter")
+            reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not usable_ai_reply(reply):
+            raise RuntimeError(
+                "Nexora is reconnecting to its learning engine. Please send that question once more."
+            )
+        return reply
 
 
 if __name__ == "__main__":
