@@ -75,6 +75,8 @@ Rules:
   you genuinely are.
 - Default length is 2 to 6 sentences, or up to 5 short bullet points.
   Only go longer if the user asks for depth or a step-by-step guide.
+- Use concise Markdown when it improves clarity: short headings, bold key
+  terms, and compact lists. Never use raw HTML.
 - Never say "as an AI" or similar. Never apologize unless you made an
   actual mistake in this conversation.
 - Ask at most one clarifying question, and only when you truly cannot
@@ -235,6 +237,27 @@ def fetch_weather_fallback(place_name):
     if temp is None or feels_like is None or wind is None:
         return None
     return f"It's {condition.lower()} in {location} right now, {temp}°C (feels like {feels_like}°C), wind {wind} km/h."
+
+
+def find_reference_leads(query):
+    """Return a few real, clickable starting references for opt-in research."""
+    clean_query = re.sub(r"\s+", " ", str(query or "")).strip()[:220]
+    if not clean_query:
+        return []
+    url = (
+        "https://en.wikipedia.org/w/api.php?action=query&list=search"
+        f"&srsearch={quote(clean_query)}&srlimit=3&format=json"
+    )
+    try:
+        with urlopen(Request(url, headers={"User-Agent": "NexoraAI/1.0"}), timeout=5) as response:
+            results = json.loads(response.read()).get("query", {}).get("search", [])
+    except Exception as error:
+        print(f"[Nexora] Reference search unavailable: {error}")
+        return []
+    return [
+        {"title": item["title"], "url": f"https://en.wikipedia.org/wiki/{quote(item['title'].replace(' ', '_'))}"}
+        for item in results if item.get("title")
+    ]
 
 
 def answer_weather(lat, lon, place_name):
@@ -474,12 +497,34 @@ class NexoraHandler(BaseHTTPRequestHandler):
         if direct_answer:
             return self.send_json(200, {"reply": direct_answer})
 
+        learning_goal = re.sub(r"\s+", " ", str(data.get("learningGoal") or "")).strip()[:120]
+        if learning_goal:
+            messages.insert(0, {
+                "role": "system",
+                "content": (
+                    "The student has chosen this optional learning focus: "
+                    f"{learning_goal}. Use it only when it genuinely helps the answer."
+                ),
+            })
+
+        sources = find_reference_leads(last_message) if data.get("research") else []
+        if sources:
+            reference_titles = "; ".join(source["title"] for source in sources)
+            messages.insert(0, {
+                "role": "system",
+                "content": (
+                    "Research mode is enabled. These are real starting reference leads: "
+                    f"{reference_titles}. Encourage the student to open and evaluate them; do not claim "
+                    "facts came from a source unless you are certain."
+                ),
+            })
+
         if CHAT_PROVIDER == "groq":
-            return self.send_json(200, {"reply": self.ask_groq(messages)})
+            return self.send_json(200, {"reply": self.ask_groq(messages), "sources": sources})
         if CHAT_PROVIDER == "gemini":
-            return self.send_json(200, {"reply": self.ask_gemini(messages, data.get("model"))})
+            return self.send_json(200, {"reply": self.ask_gemini(messages, data.get("model")), "sources": sources})
         if CHAT_PROVIDER == "openrouter":
-            return self.send_json(200, {"reply": self.ask_openrouter(messages, data.get("model"))})
+            return self.send_json(200, {"reply": self.ask_openrouter(messages, data.get("model")), "sources": sources})
         raise ValueError("CHAT_PROVIDER must be 'openrouter', 'groq', or 'gemini'")
 
     def ask_groq(self, messages):
@@ -488,7 +533,7 @@ class NexoraHandler(BaseHTTPRequestHandler):
         payload = {
             "model": GROQ_MODEL,
             "messages": [{"role": "system", "content": CHAT_INSTRUCTIONS}, *messages],
-            "max_tokens": 450,
+            "max_tokens": 320,
             "temperature": 0.4,
         }
         request = Request(
@@ -504,15 +549,18 @@ class NexoraHandler(BaseHTTPRequestHandler):
     def ask_gemini(self, messages, requested_model):
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is missing from the server environment")
+        contextual_instructions = "\n\n".join(
+            message["content"] for message in messages if message["role"] == "system"
+        )
         contents = [
             {"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]}
-            for m in messages
+            for m in messages if m["role"] != "system"
         ]
         model = requested_model or GEMINI_MODEL
         payload = {
-            "systemInstruction": {"parts": [{"text": CHAT_INSTRUCTIONS}]},
+            "systemInstruction": {"parts": [{"text": f"{CHAT_INSTRUCTIONS}\n\n{contextual_instructions}"}]},
             "contents": contents,
-            "generationConfig": {"maxOutputTokens": 450, "temperature": 0.4},
+            "generationConfig": {"maxOutputTokens": 320, "temperature": 0.4},
         }
         request = Request(
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}",
@@ -531,7 +579,7 @@ class NexoraHandler(BaseHTTPRequestHandler):
         payload = {
             "model": requested_model or OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": CHAT_INSTRUCTIONS}, *messages],
-            "max_tokens": 450,
+            "max_tokens": 320,
             "temperature": 0.4,
         }
         request = Request(

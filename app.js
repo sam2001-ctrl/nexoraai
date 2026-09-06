@@ -53,25 +53,85 @@ const promptInput = document.querySelector('#promptInput');
 const sendButton = document.querySelector('#sendButton');
 const chatStatus = document.querySelector('#chatStatus');
 const clearHistoryButton = document.querySelector('#clearHistoryButton');
+const goalInput = document.querySelector('#goalInput');
+const saveGoalButton = document.querySelector('#saveGoalButton');
+const forgetGoalButton = document.querySelector('#forgetGoalButton');
+const researchToggle = document.querySelector('#researchToggle');
 
 const history = [];
 const HISTORY_STORAGE_KEY = 'nexora-chat-history-v1';
 const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 let chatRequest = null;
 let isSendingChat = false;
+const GOAL_STORAGE_KEY = 'nexora-learning-goal-v1';
+let learningGoal = localStorage.getItem(GOAL_STORAGE_KEY) || '';
+goalInput.value = learningGoal;
+
+function saveLearningGoal() {
+  learningGoal = goalInput.value.trim().slice(0, 120);
+  if (learningGoal) localStorage.setItem(GOAL_STORAGE_KEY, learningGoal);
+  else localStorage.removeItem(GOAL_STORAGE_KEY);
+  goalInput.value = learningGoal;
+}
+
+saveGoalButton.addEventListener('click', saveLearningGoal);
+forgetGoalButton.addEventListener('click', () => {
+  learningGoal = '';
+  goalInput.value = '';
+  localStorage.removeItem(GOAL_STORAGE_KEY);
+});
 
 function setChatStatus(label, live = false) {
   chatStatus.classList.toggle('live', live);
   chatStatus.innerHTML = `<i class="dot"></i>${label}`;
 }
 
-function addMessage(content, role = 'assistant', extraClass = '', shouldScroll = true) {
+function addMessage(content, role = 'assistant', extraClass = '', shouldScroll = true, sources = []) {
   const message = document.createElement('article');
   message.className = `message ${role} ${extraClass}`.trim();
   message.innerHTML = role === 'assistant'
     ? '<div class="avatar">N</div><div class="bubble"></div>'
     : '<div class="bubble"></div>';
-  message.querySelector('.bubble').textContent = content;
+  const bubble = message.querySelector('.bubble');
+  // Assistant replies support useful Markdown (lists, emphasis, code), but are
+  // sanitised before insertion so an upstream response can never inject HTML.
+  if (role === 'assistant' && !extraClass && window.marked && window.DOMPurify) {
+    bubble.innerHTML = DOMPurify.sanitize(marked.parse(content, { gfm: true, breaks: true }));
+  } else {
+    bubble.textContent = content;
+  }
+  if (role === 'assistant' && sources.length) {
+    const sourceList = document.createElement('div');
+    sourceList.className = 'source-list';
+    sourceList.append('Reference leads: ');
+    sources.forEach((source, index) => {
+      if (!source?.url || !source?.title) return;
+      const link = document.createElement('a');
+      link.href = source.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = source.title;
+      sourceList.append(link);
+      if (index < sources.length - 1) sourceList.append(' · ');
+    });
+    message.append(sourceList);
+  }
+  if (role === 'assistant' && !extraClass) {
+    const nextSteps = document.createElement('div');
+    nextSteps.className = 'next-steps';
+    ['Explain simpler', 'Give me a challenge', 'What should I learn next?'].forEach(label => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.addEventListener('click', () => {
+        promptInput.value = `${label} based on your last answer.`;
+        promptInput.dispatchEvent(new Event('input'));
+        chatForm.requestSubmit();
+      });
+      nextSteps.append(button);
+    });
+    message.append(nextSteps);
+  }
   chat.append(message);
   if (shouldScroll) message.scrollIntoView({ behavior: 'smooth', block: 'end' });
   return message;
@@ -135,10 +195,13 @@ async function getReply() {
     signal: chatRequest.signal,
     body: JSON.stringify({
       model: config.model,
-      messages: history.slice(-16).map(({ role, content }) => ({ role, content })),
+      // A focused recent context is quicker to send and process than a full transcript.
+      messages: history.slice(-8).map(({ role, content }) => ({ role, content })),
       timezone: userTimezone,
       lat: userLocation?.lat,
       lon: userLocation?.lon,
+      learningGoal,
+      research: researchToggle.checked,
     }),
   });
 
@@ -153,7 +216,10 @@ async function getReply() {
 
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Your AI endpoint returned an error.');
-  return data.reply || data.message || data.choices?.[0]?.message?.content || 'Your endpoint returned no reply.';
+  return {
+    reply: data.reply || data.message || data.choices?.[0]?.message?.content || 'Your endpoint returned no reply.',
+    sources: Array.isArray(data.sources) ? data.sources : [],
+  };
 }
 
 chatForm.addEventListener('submit', async event => {
@@ -174,9 +240,9 @@ chatForm.addEventListener('submit', async event => {
   setChatStatus('Thinking', true);
 
   try {
-    const reply = await getReply();
+    const { reply, sources } = await getReply();
     pending.remove();
-    addMessage(reply);
+    addMessage(reply, 'assistant', '', true, sources);
     history.push({ role: 'assistant', content: reply, createdAt: Date.now() });
     saveHistory();
   } catch (error) {
@@ -215,6 +281,33 @@ document.querySelectorAll('.suggestion').forEach(button => {
   });
 });
 
+function openConsoleWithPrompt(prompt) {
+  document.getElementById('console')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  promptInput.value = prompt;
+  promptInput.dispatchEvent(new Event('input'));
+  window.setTimeout(() => {
+    promptInput.focus();
+    chatForm.requestSubmit();
+  }, 450);
+}
+
+document.querySelectorAll('[data-spark]').forEach(button => {
+  button.addEventListener('click', () => openConsoleWithPrompt(
+    'Create a Curiosity Spark for me: give me one surprising question to explore, why it matters, a 10-minute first challenge, and one thing I can share with a friend. Keep it exciting and age-appropriate.',
+  ));
+});
+
+document.querySelector('#projectForm')?.addEventListener('submit', event => {
+  event.preventDefault();
+  const interest = document.querySelector('#projectInterest').value.trim();
+  const problem = document.querySelector('#projectProblem').value.trim();
+  const outcome = document.querySelector('#projectOutcome').value.trim() || 'a clear presentation of what I learn';
+  if (!interest || !problem) return;
+  openConsoleWithPrompt(
+    `Create a student Project Map in Markdown. My interest: ${interest}. The question or problem: ${problem}. I want to create: ${outcome}. Include: a strong project title, why it matters, a research question, 3 realistic first steps, materials or people I may need, and a simple presentation plan. Encourage me to do the investigation myself.`,
+  );
+});
+
 /* ----------------------------------------------------------------- voice */
 
 const AGORA_SERVER = window.location.origin;
@@ -225,12 +318,26 @@ let agoraClient = null;
 let microphoneTrack = null;
 let agoraAgentId = null;
 let isConnectingAgora = false;
+let isMicrophoneMuted = false;
 const remoteAudioTracks = new Map();
 
 const voiceButton = document.querySelector('#voiceButton');
 const voiceButtonText = document.querySelector('#voiceButtonText');
 const voiceState = document.querySelector('#voiceState');
 const voiceStatus = document.querySelector('#voiceStatus');
+const muteButton = document.querySelector('#muteButton');
+const muteButtonText = document.querySelector('#muteButtonText');
+
+async function setMicrophoneMuted(muted) {
+  if (!microphoneTrack) return;
+  // Keep the RTC session and the agent's reply alive; only stop publishing the
+  // local mic. This prevents room noise from triggering a barge-in interrupt.
+  await microphoneTrack.setMuted(muted);
+  isMicrophoneMuted = muted;
+  muteButton.classList.toggle('is-muted', muted);
+  muteButton.setAttribute('aria-pressed', String(muted));
+  muteButtonText.textContent = muted ? 'Unmute mic' : 'Mute mic';
+}
 
 function setVoiceUi(live) {
   voiceButton.classList.toggle('listening', live);
@@ -238,6 +345,7 @@ function setVoiceUi(live) {
   voiceState.textContent = live ? 'Listening and connected' : 'Ready when you are';
   voiceStatus.classList.toggle('live', live);
   voiceStatus.innerHTML = `<i class="dot"></i>${live ? 'Live' : 'Ready'}`;
+  muteButton.disabled = !live;
   voiceFace?.setState(live ? 'active' : 'idle');
 }
 
@@ -286,6 +394,7 @@ async function connectAgora() {
     await agoraClient.join(tokenData.appId, tokenData.channel, tokenData.token, tokenData.uid);
     microphoneTrack = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, AGC: true, ANS: true });
     await agoraClient.publish([microphoneTrack]);
+    isMicrophoneMuted = false;
 
     const agentResult = await getJson(`${AGORA_SERVER}/api/ai/start`, {
       method: 'POST',
@@ -328,6 +437,10 @@ async function disconnectAgora(stopAgent = true) {
     microphoneTrack.close();
     microphoneTrack = null;
   }
+  isMicrophoneMuted = false;
+  muteButton.classList.remove('is-muted');
+  muteButton.setAttribute('aria-pressed', 'false');
+  muteButtonText.textContent = 'Mute mic';
   for (const track of remoteAudioTracks.values()) track.stop();
   remoteAudioTracks.clear();
   voiceFace?.detachAudioTrack();
@@ -345,6 +458,14 @@ async function disconnectAgora(stopAgent = true) {
 }
 
 voiceButton.addEventListener('click', () => (agoraClient ? disconnectAgora() : connectAgora()));
+muteButton.addEventListener('click', async () => {
+  try {
+    await setMicrophoneMuted(!isMicrophoneMuted);
+  } catch (error) {
+    console.error('Could not change microphone state:', error);
+    voiceState.textContent = 'Could not change microphone state. Please try again.';
+  }
+});
 window.addEventListener('beforeunload', () => { microphoneTrack?.close(); agoraClient?.leave(); });
 
 /* ------------------------------------------------------------------ globe
