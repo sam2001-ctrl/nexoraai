@@ -385,7 +385,8 @@ def usable_ai_reply(reply):
         return False
     lower = clean.lower()
     return not (
-        ("user safety:" in lower and "response safety:" in lower)
+        "user safety:" in lower
+        or "response safety:" in lower
         or lower in {"safe", "blocked", "refused", "i couldn't generate a response."}
     )
 
