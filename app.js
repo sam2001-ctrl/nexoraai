@@ -319,8 +319,6 @@ let microphoneTrack = null;
 let agoraAgentId = null;
 let isConnectingAgora = false;
 let isMicrophoneMuted = false;
-let userMutedMicrophone = false;
-let agentIsSpeaking = false;
 const remoteAudioTracks = new Map();
 
 const voiceButton = document.querySelector('#voiceButton');
@@ -330,18 +328,13 @@ const voiceStatus = document.querySelector('#voiceStatus');
 const muteButton = document.querySelector('#muteButton');
 const muteButtonText = document.querySelector('#muteButtonText');
 
-async function setMicrophoneMuted(muted, { manual = false } = {}) {
+async function setMicrophoneMuted(muted) {
   if (!microphoneTrack) return;
-  // Keep the RTC session and the agent's reply alive; only stop publishing the
-  // local mic. This prevents room noise from triggering a barge-in interrupt.
   await microphoneTrack.setMuted(muted);
   isMicrophoneMuted = muted;
-  if (manual) userMutedMicrophone = muted;
   muteButton.classList.toggle('is-muted', muted);
   muteButton.setAttribute('aria-pressed', String(muted));
-  muteButtonText.textContent = muted
-    ? (agentIsSpeaking && !userMutedMicrophone ? 'Listening resumes after reply' : 'Unmute mic')
-    : 'Mute mic';
+  muteButtonText.textContent = muted ? 'Unmute mic' : 'Mute mic';
 }
 
 function setVoiceUi(live) {
@@ -369,11 +362,6 @@ async function playRemoteAudio(user, mediaType) {
   remoteAudioTracks.get(user.uid)?.stop();
   track.play();
   remoteAudioTracks.set(user.uid, track);
-  // Agora's AI pipeline can treat echo and small room sounds as a barge-in.
-  // Pause only the outbound mic while it speaks; restore it after the reply.
-  agentIsSpeaking = true;
-  if (!userMutedMicrophone) await setMicrophoneMuted(true);
-  voiceState.textContent = 'Nexora is speaking — your mic will resume after the reply';
   voiceFace?.attachAudioTrack(track.getMediaStreamTrack?.());
 }
 
@@ -381,11 +369,6 @@ async function stopRemoteAudio(user) {
   const track = remoteAudioTracks.get(user.uid) || user.audioTrack;
   track?.stop();
   remoteAudioTracks.delete(user.uid);
-  if (remoteAudioTracks.size === 0) {
-    agentIsSpeaking = false;
-    if (!userMutedMicrophone && microphoneTrack) await setMicrophoneMuted(false);
-    if (agoraClient) voiceState.textContent = userMutedMicrophone ? 'Microphone muted' : 'Your turn — Nexora is listening';
-  }
   voiceFace?.detachAudioTrack();
 }
 
@@ -410,7 +393,6 @@ async function connectAgora() {
     microphoneTrack = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, AGC: true, ANS: true });
     await agoraClient.publish([microphoneTrack]);
     isMicrophoneMuted = false;
-    userMutedMicrophone = false;
 
     const agentResult = await getJson(`${AGORA_SERVER}/api/ai/start`, {
       method: 'POST',
@@ -454,8 +436,6 @@ async function disconnectAgora(stopAgent = true) {
     microphoneTrack = null;
   }
   isMicrophoneMuted = false;
-  userMutedMicrophone = false;
-  agentIsSpeaking = false;
   muteButton.classList.remove('is-muted');
   muteButton.setAttribute('aria-pressed', 'false');
   muteButtonText.textContent = 'Mute mic';
@@ -478,9 +458,7 @@ async function disconnectAgora(stopAgent = true) {
 voiceButton.addEventListener('click', () => (agoraClient ? disconnectAgora() : connectAgora()));
 muteButton.addEventListener('click', async () => {
   try {
-    // During an AI reply, the mic is already auto-muted. A click records a
-    // lasting manual mute so it will not be reopened at the end of the reply.
-    await setMicrophoneMuted(agentIsSpeaking ? !userMutedMicrophone : !isMicrophoneMuted, { manual: true });
+    await setMicrophoneMuted(!isMicrophoneMuted);
   } catch (error) {
     console.error('Could not change microphone state:', error);
     voiceState.textContent = 'Could not change microphone state. Please try again.';
