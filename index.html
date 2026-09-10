@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nexora AI — Learn beyond the textbook</title>
-  <meta name="description" content="Nexora gives young minds a calm, capable place to ask, explore and create." />
+  <title>Nexora × Agora — Real-time voice learning</title>
+  <meta name="description" content="Nexora is an Agora-powered real-time voice learning companion." />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,35 +12,35 @@
 
 <nav class="nav">
   <div class="shell nav-row">
-    <a class="brand" href="#top" aria-label="Nexora home"><span class="brand-mark">N</span>NEXORA<span class="brand-ai">AI</span></a>
-    <div class="nav-links"><button data-scroll="why">Why Nexora</button><button data-scroll="console">Experience it</button></div>
-    <button class="nav-cta" data-scroll="console">Try Nexora</button>
+    <a class="brand" href="#top" aria-label="Nexora home"><span class="brand-mark">N</span>NEXORA <span class="brand-ai">× AGORA</span></a>
+    <div class="nav-links"><button data-scroll="why">How it works</button><button data-scroll="console">Live agent</button></div>
+    <button class="nav-cta" data-scroll="console">Start a live session</button>
   </div>
 </nav>
 
 <main id="top">
   <header class="shell hero">
     <div class="hero-copy">
-      <p class="eyebrow"><i></i> BUILT IN INDIA FOR CURIOUS MINDS</p>
-      <h1>Every big future<br>starts with a <em>question.</em></h1>
-      <p class="lede">Nexora gives students a thoughtful space to wonder out loud, turn ideas into momentum, and discover what they are capable of.</p>
-      <div class="hero-actions"><button class="btn btn-primary" data-scroll="console">Start exploring <span>→</span></button><button class="btn btn-ghost" data-spark>Get a curiosity spark <span>✦</span></button></div>
-      <p class="hero-note">Created by students who believe curiosity deserves better tools.</p>
+      <p class="eyebrow"><i></i> POWERED BY AGORA CONVERSATIONAL AI</p>
+      <h1>Voice learning that<br>responds in <em>real time.</em></h1>
+      <p class="lede">Nexora combines Agora’s low-latency voice infrastructure with a student-first AI companion. Speak naturally, interrupt when needed, and follow every idea in a live transcript.</p>
+      <div class="hero-actions"><button class="btn btn-primary" data-scroll="console">Talk to the live agent <span>→</span></button><button class="btn btn-ghost" data-scroll="why">See the Agora flow <span>✦</span></button></div>
+      <p class="hero-note">RTC audio · live transcription · secure per-session tokens</p>
     </div>
     <div class="hero-visual"><canvas id="heroGlobe" aria-label="Interactive Nexora globe" role="img"></canvas><span class="orbit orbit-one"></span><span class="orbit orbit-two"></span><p>EXPLORE<br><b>WITHOUT LIMITS</b></p></div>
   </header>
 
   <section id="why" class="shell story-section">
-    <div class="section-label"><span>01</span><p>WHY NEXORA</p></div>
-    <div class="story-grid"><h2>School should never be the edge of a student's imagination.</h2><p>Some of the most important questions arrive before anyone has taught us how to ask them. Nexora is a patient companion for that moment: clear enough to trust, open enough to inspire, and always ready for the next “what if?”</p></div>
+    <div class="section-label"><span>01</span><p>THE AGORA VOICE FLOW</p></div>
+    <div class="story-grid"><h2>One natural conversation, delivered over a real-time network.</h2><p>Your microphone connects to a private Agora RTC channel. The Agora Conversational AI agent listens, reasons, speaks back, and sends transcript events to the page—so the learning experience feels like a conversation, not a voice recording.</p></div>
   </section>
 
   <section class="shell capability-section">
-    <div class="section-label"><span>02</span><p>DESIGNED FOR MOMENTUM</p></div>
+    <div class="section-label"><span>02</span><p>AGORA-POWERED CAPABILITIES</p></div>
     <div class="capability-grid">
-      <article><b>01</b><h3>Think freely</h3><p>Turn a half-formed thought into a starting point you can build on.</p></article>
-      <article><b>02</b><h3>Learn clearly</h3><p>Ask for the explanation that finally makes a difficult idea click.</p></article>
-      <article><b>03</b><h3>Speak naturally</h3><p>Talk through an idea when typing is the last thing on your mind.</p></article>
+      <article><b>01</b><h3>Live audio</h3><p>Agora RTC carries microphone and agent audio with echo cancellation and a unique session for every learner.</p></article>
+      <article><b>02</b><h3>Live transcript</h3><p>See each turn appear as it is recognized, including partial and completed agent responses.</p></article>
+      <article><b>03</b><h3>Conversation control</h3><p>Mute when you need quiet, interrupt an answer when your question changes, and end the session cleanly.</p></article>
     </div>
   </section>
 
@@ -56,7 +56,7 @@
   </section>
 
   <section id="console" class="shell console-section">
-    <div class="console-intro"><div><p class="eyebrow"><i></i> NEXORA CONSOLE</p><h2>Make your next<br>question count.</h2></div><p>Choose the way that feels natural. Nexora is here to help you get unstuck and move forward.</p></div>
+    <div class="console-intro"><div><p class="eyebrow"><i></i> AGORA LIVE CONSOLE</p><h2>Talk. Interrupt.<br>Keep every idea.</h2></div><p>This console uses Agora Conversational AI for the live session. The transcript below is supplied by the voice agent—not generated from browser speech recognition.</p></div>
     <div class="console-grid">
       <section class="window chat-window" aria-label="Text chat console">
         <div class="window-bar"><div><span class="window-dot"></span>TEXT MODE</div><span class="window-status" id="chatStatus"><i class="dot"></i>Ready</span></div>
@@ -64,9 +64,12 @@
         <div class="composer-area"><div class="learning-tools"><label class="goal-field" for="goalInput">Learning focus <input id="goalInput" maxlength="120" placeholder="Optional: e.g. science fair" /></label><button id="saveGoalButton" class="tool-button" type="button">Save</button><button id="forgetGoalButton" class="tool-button" type="button" title="Forget learning focus">Forget</button></div><div class="suggestions"><button class="suggestion" type="button">Brainstorm a project</button><button class="suggestion" type="button">Explain a hard topic</button><button class="suggestion" type="button">Help me begin</button></div><form id="chatForm" class="composer"><label class="sr-only" for="promptInput">Your message</label><textarea id="promptInput" rows="1" placeholder="Ask anything..." autocomplete="off"></textarea><button class="send-button" type="submit" id="sendButton" aria-label="Send message">Send <span>↗</span></button></form><div class="utility-row"><button class="clear-history-button" id="clearHistoryButton" type="button">Clear conversation</button><label class="research-toggle"><input id="researchToggle" type="checkbox" /><span>Research mode</span></label><span class="provider-note" id="providerNote">Nexora is thinking with you</span></div></div>
       </section>
 
-      <section class="window voice-window" aria-label="Live voice console">
-        <div class="window-bar"><div><span class="window-dot"></span>VOICE MODE</div><span class="window-status" id="voiceStatus"><i class="dot"></i>Ready</span></div>
-        <div class="voice-body"><div class="voice-face-wrap"><canvas id="voiceFace" aria-label="Nexora voice assistant" role="img"></canvas></div><p class="voice-state" id="voiceState">Ready when you are</p><div class="voice-controls"><button id="voiceButton" class="voice-action" type="button"><svg class="mic-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 15.5c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3S9 4.34 9 6v6.5c0 1.66 1.34 3 3 3Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 11v1.5a6 6 0 0 0 12 0V11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.5v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span id="voiceButtonText">Start conversation</span></button><button id="muteButton" class="mute-button" type="button" disabled aria-pressed="false" title="Mute microphone"><span class="mute-icon">⌁</span><span id="muteButtonText">Mute mic</span></button></div><p class="voice-hint">Use Mute mic any time you want Nexora to ignore background sound.</p></div>
+      <section class="window voice-window" aria-label="Agora classroom co-teacher">
+        <div class="window-bar"><div><span class="window-dot"></span>AGORA CONVERSATIONAL AI</div><span class="window-status" id="voiceStatus"><i class="dot"></i>Ready</span></div>
+        <div class="classroom-setup"><label>Room code<input id="classroomCode" value="MATH-101" maxlength="32" /></label><label>Your name<input id="participantName" value="Teacher" maxlength="40" /></label><label>Role<select id="participantRole"><option value="teacher">Teacher</option><option value="student">Student</option></select></label><p class="classroom-note">Everyone joins the same room code first. The teacher then selects <b>Allow Nexora</b> to bring the co-teacher into the lesson.</p></div>
+        <div class="classroom-roster"><div class="transcript-head"><span>CLASSROOM</span><span id="classroomStatus">Join a room to begin</span></div><div id="participantList" class="participant-list"></div></div>
+        <section id="teacherDashboard" class="teacher-dashboard"><div class="transcript-head"><span>TEACHER DASHBOARD</span><span id="lessonStatus">Lesson not set</span></div><div class="lesson-plan"><label>Topic<input id="lessonTopic" value="Fractions" maxlength="80" /></label><label>Grade<select id="lessonLevel"><option>Grade 5</option><option>Grade 6</option><option>Grade 7</option><option>Mixed level</option></select></label><label>Language<select id="lessonLanguage"><option>English</option><option>Hinglish</option><option>Hindi</option></select></label><label class="wide">Learning objective<input id="lessonObjective" value="Compare fractions with the same denominator" maxlength="160" /></label><label class="wide">Spoken quiz question<input id="quizQuestion" value="Which fraction is larger: 3/8 or 5/8?" maxlength="240" /></label><label class="wide">Expected keyword<input id="quizAnswer" value="5/8" maxlength="100" /></label><button id="saveLessonButton" type="button">Save lesson context</button></div><div class="dashboard-grid"><p><b id="handCount">0</b> hands raised</p><p><b id="gapCount">0</b> confusion signals</p><p><b id="quizScore">—</b> quiz check-ins</p></div><div id="gapFeed" class="gap-feed">No learning gaps detected yet.</div></section>
+        <div class="voice-body"><div class="voice-face-wrap"><canvas id="voiceFace" aria-label="Nexora classroom co-teacher" role="img"></canvas></div><p class="voice-state" id="voiceState">Join a classroom to create a secure Agora session</p><div class="voice-controls"><button id="voiceButton" class="voice-action" type="button">Join live classroom</button><button id="muteButton" class="mute-button" type="button" disabled aria-pressed="false" title="Mute microphone"><span class="mute-icon">⌁</span><span id="muteButtonText">Mute mic</span></button><button id="interruptButton" class="interrupt-button" type="button" disabled title="Stop the current agent answer">Interrupt agent</button></div><div id="teacherControls" class="teacher-controls"><button data-teacher-control="allow" type="button">Allow Nexora</button><button data-teacher-control="pause" type="button">Pause AI</button><button data-teacher-control="quiz" type="button">Start spoken quiz</button><button data-teacher-control="summary" type="button">Class insights</button></div><button id="raiseHandButton" class="raise-hand-button" type="button">Raise hand / ask Nexora</button><div id="quizPrompt" class="quiz-prompt" hidden></div><div class="transcript-panel" aria-live="polite"><div class="transcript-head"><span>SHARED LIVE TRANSCRIPT</span><span id="transcriptState">Waiting for session</span></div><div id="voiceTranscript" class="transcript-log"><p class="transcript-empty">Transcript events from Agora will appear here during a live session.</p></div></div><div id="classInsights" class="class-insights" hidden></div><p class="voice-hint">Teacher controls decide when Nexora may contribute. Student questions build a shared learning-gap view.</p></div>
       </section>
     </div>
   </section>

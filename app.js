@@ -63,6 +63,7 @@ const HISTORY_STORAGE_KEY = 'nexora-chat-history-v1';
 const HISTORY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 let chatRequest = null;
 let isSendingChat = false;
+let projectIncubatorRequest = false;
 const GOAL_STORAGE_KEY = 'nexora-learning-goal-v1';
 let learningGoal = localStorage.getItem(GOAL_STORAGE_KEY) || '';
 goalInput.value = learningGoal;
@@ -202,6 +203,7 @@ async function getReply() {
       lon: userLocation?.lon,
       learningGoal,
       research: researchToggle.checked,
+      projectIncubator: projectIncubatorRequest,
     }),
   });
 
@@ -253,6 +255,7 @@ chatForm.addEventListener('submit', async event => {
     isSendingChat = false;
     sendButton.disabled = false;
     setChatStatus('Ready');
+    projectIncubatorRequest = false;
   }
 });
 
@@ -281,9 +284,10 @@ document.querySelectorAll('.suggestion').forEach(button => {
   });
 });
 
-function openConsoleWithPrompt(prompt) {
+function openConsoleWithPrompt(prompt, options = {}) {
   document.getElementById('console')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   promptInput.value = prompt;
+  projectIncubatorRequest = Boolean(options.projectIncubator);
   promptInput.dispatchEvent(new Event('input'));
   window.setTimeout(() => {
     promptInput.focus();
@@ -305,14 +309,15 @@ document.querySelector('#projectForm')?.addEventListener('submit', event => {
   if (!interest || !problem) return;
   openConsoleWithPrompt(
     `Create a student Project Map in Markdown. My interest: ${interest}. The question or problem: ${problem}. I want to create: ${outcome}. Include: a strong project title, why it matters, a research question, 3 realistic first steps, materials or people I may need, and a simple presentation plan. Encourage me to do the investigation myself.`,
+    { projectIncubator: true },
   );
 });
 
 /* ----------------------------------------------------------------- voice */
 
 const AGORA_SERVER = window.location.origin;
-const AGORA_CHANNEL = `nexora-${crypto.randomUUID().replaceAll('-', '').slice(0, 20)}`;
 const AGORA_UID = Math.floor(Math.random() * 1_000_000) + 1;
+let agoraChannel = null;
 
 let agoraClient = null;
 let microphoneTrack = null;
@@ -327,6 +332,115 @@ const voiceState = document.querySelector('#voiceState');
 const voiceStatus = document.querySelector('#voiceStatus');
 const muteButton = document.querySelector('#muteButton');
 const muteButtonText = document.querySelector('#muteButtonText');
+const interruptButton = document.querySelector('#interruptButton');
+const voiceTranscript = document.querySelector('#voiceTranscript');
+const transcriptState = document.querySelector('#transcriptState');
+const transcriptNodes = new Map();
+const classroomCodeInput = document.querySelector('#classroomCode');
+const participantNameInput = document.querySelector('#participantName');
+const participantRoleInput = document.querySelector('#participantRole');
+const participantList = document.querySelector('#participantList');
+const classroomStatus = document.querySelector('#classroomStatus');
+const teacherControls = document.querySelector('#teacherControls');
+const raiseHandButton = document.querySelector('#raiseHandButton');
+const classInsights = document.querySelector('#classInsights');
+const teacherDashboard = document.querySelector('#teacherDashboard');
+const lessonStatus = document.querySelector('#lessonStatus');
+const lessonTopic = document.querySelector('#lessonTopic');
+const lessonLevel = document.querySelector('#lessonLevel');
+const lessonLanguage = document.querySelector('#lessonLanguage');
+const lessonObjective = document.querySelector('#lessonObjective');
+const quizQuestion = document.querySelector('#quizQuestion');
+const quizAnswer = document.querySelector('#quizAnswer');
+const saveLessonButton = document.querySelector('#saveLessonButton');
+const handCount = document.querySelector('#handCount');
+const gapCount = document.querySelector('#gapCount');
+const quizScore = document.querySelector('#quizScore');
+const gapFeed = document.querySelector('#gapFeed');
+const quizPrompt = document.querySelector('#quizPrompt');
+let classroomState = null;
+let classroomPoll = null;
+
+function classroomCode() {
+  return classroomCodeInput.value.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 32);
+}
+
+function participant() {
+  return { uid: AGORA_UID, name: participantNameInput.value.trim().slice(0, 40), role: participantRoleInput.value };
+}
+
+async function classroomRequest(path, body) {
+  return getJson(`${AGORA_SERVER}${path}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined);
+}
+
+function renderClassroom(state) {
+  classroomState = state;
+  classroomStatus.textContent = `${state.code} · ${state.participants.length} present`;
+  participantList.replaceChildren();
+  state.participants.forEach(member => {
+    const item = document.createElement('span');
+    item.className = `participant ${member.role}${member.handRaised ? ' hand' : ''}`;
+    item.textContent = `${member.name} · ${member.role}${member.handRaised ? ' ✋' : ''}`;
+    participantList.append(item);
+  });
+  teacherControls.hidden = participantRoleInput.value !== 'teacher';
+  teacherDashboard.hidden = participantRoleInput.value !== 'teacher';
+  raiseHandButton.hidden = participantRoleInput.value === 'teacher';
+  renderTeacherDashboard(state);
+  if (!state.aiAllowed && agoraClient) voiceState.textContent = 'Nexora is paused — the teacher has speaking priority.';
+}
+
+function renderTeacherDashboard(state) {
+  const lesson = state.lesson || {};
+  lessonStatus.textContent = lesson.topic ? `${lesson.topic} · ${lesson.level || 'lesson'}` : 'Lesson not set';
+  handCount.textContent = state.participants.filter(member => member.handRaised).length;
+  gapCount.textContent = state.confusionSignals?.length || 0;
+  const answers = Object.values(state.quiz?.answers || {});
+  quizScore.textContent = answers.length ? `${answers.filter(answer => answer.correct).length}/${answers.length}` : '—';
+  const gaps = state.gaps || [];
+  gapFeed.textContent = gaps.length
+    ? `Repeated concepts: ${gaps.map(([term, count]) => `${term} (${count})`).join(' · ')}`
+    : 'No repeated learning gaps detected yet.';
+  if (state.quizActive && lesson.quizQuestion) {
+    quizPrompt.hidden = false;
+    quizPrompt.textContent = `SPOKEN QUIZ · ${lesson.quizQuestion}`;
+  } else {
+    quizPrompt.hidden = true;
+  }
+}
+
+function lessonData() {
+  return {
+    topic: lessonTopic.value.trim(), level: lessonLevel.value,
+    language: lessonLanguage.value, objective: lessonObjective.value.trim(),
+    quizQuestion: quizQuestion.value.trim(), expectedAnswer: quizAnswer.value.trim(),
+  };
+}
+
+async function joinClassroom() {
+  const code = classroomCode();
+  const me = participant();
+  if (!code || !me.name) throw new Error('Enter a classroom code and your name.');
+  const state = await classroomRequest('/api/classroom/join', { code, participant: me });
+  agoraChannel = `nexora-class-${code.toLowerCase()}`;
+  renderClassroom(state);
+  if (!classroomPoll) classroomPoll = window.setInterval(refreshClassroom, 3000);
+  return state;
+}
+
+async function refreshClassroom() {
+  if (!classroomCode()) return;
+  try {
+    const state = await getJson(`${AGORA_SERVER}/api/classroom?code=${encodeURIComponent(classroomCode())}`);
+    renderClassroom(state);
+  } catch (error) { console.debug('Classroom refresh skipped.', error); }
+}
+
+async function reportClassroomEvent(event) {
+  if (!classroomState || !event.text) return;
+  try { renderClassroom(await classroomRequest('/api/classroom/event', { code: classroomCode(), event })); }
+  catch (error) { console.debug('Classroom event was not saved.', error); }
+}
 
 async function setMicrophoneMuted(muted) {
   if (!microphoneTrack) return;
@@ -339,12 +453,78 @@ async function setMicrophoneMuted(muted) {
 
 function setVoiceUi(live) {
   voiceButton.classList.toggle('listening', live);
-  voiceButtonText.textContent = live ? 'End conversation' : 'Start conversation';
-  voiceState.textContent = live ? 'Listening and connected' : 'Ready when you are';
+  voiceButtonText.textContent = live ? 'End Agora session' : 'Start Agora session';
+  voiceState.textContent = live ? 'Agora agent is listening' : 'Ready to create a secure Agora session';
   voiceStatus.classList.toggle('live', live);
   voiceStatus.innerHTML = `<i class="dot"></i>${live ? 'Live' : 'Ready'}`;
   muteButton.disabled = !live;
+  interruptButton.disabled = !live;
   voiceFace?.setState(live ? 'active' : 'idle');
+}
+
+function resetVoiceTranscript() {
+  transcriptNodes.clear();
+  voiceTranscript.replaceChildren();
+  const empty = document.createElement('p');
+  empty.className = 'transcript-empty';
+  empty.textContent = 'Transcript events from Agora will appear here during a live session.';
+  voiceTranscript.append(empty);
+  transcriptState.textContent = 'Waiting for session';
+}
+
+function decodeAgoraMessage(data) {
+  try {
+    if (typeof data === 'string') return JSON.parse(data);
+    const bytes = data instanceof ArrayBuffer
+      ? new Uint8Array(data)
+      : new Uint8Array(data.buffer, data.byteOffset || 0, data.byteLength);
+    const text = new TextDecoder().decode(bytes);
+    return JSON.parse(text);
+  } catch (error) {
+    console.debug('Ignoring a non-transcript Agora data message.', error);
+    return null;
+  }
+}
+
+function renderTranscriptEvent(event) {
+  if (!event || typeof event !== 'object') return;
+  const kind = event.object || event.type || '';
+  const state = event.state || event.status || event.turn_status;
+  if (kind.includes('state') || kind.includes('status')) {
+    const label = String(state || 'Active').replaceAll('_', ' ');
+    transcriptState.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+    voiceState.textContent = `Agora agent: ${label}`;
+    return;
+  }
+  const isUser = kind.includes('user');
+  const isAgent = kind.includes('assistant') || kind.includes('agent');
+  if ((!isUser && !isAgent) || !event.text) return;
+
+  voiceTranscript.querySelector('.transcript-empty')?.remove();
+  const final = event.final === true || event.turn_status === 1 || event.turn_status === 'end';
+  const key = `${isUser ? 'user' : 'agent'}-${event.turn_id ?? event.message_id ?? crypto.randomUUID()}`;
+  let item = transcriptNodes.get(key);
+  if (!item) {
+    item = document.createElement('p');
+    item.className = `transcript-item ${isUser ? 'user' : 'agent'}`;
+    const speaker = document.createElement('b');
+    speaker.textContent = isUser ? 'YOU' : 'NEXORA · AGORA AGENT';
+    const words = document.createElement('span');
+    item.append(speaker, words);
+    voiceTranscript.append(item);
+    transcriptNodes.set(key, item);
+  }
+  item.querySelector('span').textContent = event.text;
+  item.classList.toggle('partial', !final);
+  transcriptState.textContent = final ? 'Live' : (isUser ? 'Listening…' : 'Speaking…');
+  voiceTranscript.scrollTop = voiceTranscript.scrollHeight;
+  if (final) {
+    const member = classroomState?.participants.find(item => String(item.uid) === String(event.user_id || event.uid));
+    reportClassroomEvent({
+      type: isUser ? (member?.role === 'teacher' ? 'teacher_transcript' : 'student_transcript') : 'agent_transcript',
+      speaker: isUser ? (member?.name || 'Student') : 'Nexora', text: event.text,
+    });
+  }
 }
 
 async function getJson(url, options) {
@@ -379,7 +559,10 @@ async function connectAgora() {
   voiceFace?.setState('connecting');
   try {
     voiceState.textContent = 'Connecting…';
-    const tokenData = await getJson(`${AGORA_SERVER}/agora/token?channel=${encodeURIComponent(AGORA_CHANNEL)}&uid=${AGORA_UID}`);
+    const room = await joinClassroom();
+    resetVoiceTranscript();
+    transcriptState.textContent = 'Connecting to Agora…';
+    const tokenData = await getJson(`${AGORA_SERVER}/agora/token?channel=${encodeURIComponent(agoraChannel)}&uid=${AGORA_UID}`);
 
     agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
     agoraClient.on('user-published', (user, mediaType) =>
@@ -388,21 +571,24 @@ async function connectAgora() {
       if (mediaType === 'audio') stopRemoteAudio(user).catch(error => console.error('Remote audio cleanup error:', error));
     });
     agoraClient.on('user-left', user => stopRemoteAudio(user).catch(error => console.error('Remote audio cleanup error:', error)));
+    // Conversational AI Engine emits transcript and state JSON through the
+    // Agora RTC data stream. The handler accepts both ArrayBuffer and string
+    // payloads so it remains compatible with the Web SDK transport.
+    agoraClient.on('stream-message', (_uid, data) => renderTranscriptEvent(decodeAgoraMessage(data)));
 
     await agoraClient.join(tokenData.appId, tokenData.channel, tokenData.token, tokenData.uid);
     microphoneTrack = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, AGC: true, ANS: true });
     await agoraClient.publish([microphoneTrack]);
     isMicrophoneMuted = false;
 
-    const agentResult = await getJson(`${AGORA_SERVER}/api/ai/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel: tokenData.channel, uid: tokenData.uid }),
-    });
-    agoraAgentId = agentResult.agent?.agent_id || agentResult.agent?.agentId;
-    if (!agoraAgentId) throw new Error('Agora started an agent but did not return its ID.');
+    if (participantRoleInput.value === 'teacher') {
+      voiceState.textContent = 'Classroom joined. Nexora stays silent until you allow it.';
+    } else {
+      voiceState.textContent = 'Joined classroom — waiting for the teacher to enable Nexora.';
+    }
 
     setVoiceUi(true);
+    transcriptState.textContent = 'Live';
   } catch (error) {
     console.error('Agora connection error:', error);
     voiceState.textContent = `Connection failed: ${error.message}`;
@@ -412,6 +598,21 @@ async function connectAgora() {
     isConnectingAgora = false;
     voiceButton.disabled = false;
   }
+}
+
+async function startClassroomAgent() {
+  if (!agoraClient || participantRoleInput.value !== 'teacher' || agoraAgentId) return;
+  const state = classroomState;
+  if (!state) throw new Error('Classroom is not ready yet.');
+  const agentResult = await getJson(`${AGORA_SERVER}/api/ai/start`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      channel: agoraChannel, uid: AGORA_UID, classroomCode: state.code,
+      participantUids: state.participants.map(member => member.uid),
+    }),
+  });
+  agoraAgentId = agentResult.agent?.agent_id || agentResult.agent?.agentId;
+  if (!agoraAgentId) throw new Error('Agora started a co-teacher but did not return its ID.');
 }
 
 async function disconnectAgora(stopAgent = true) {
@@ -453,6 +654,7 @@ async function disconnectAgora(stopAgent = true) {
     agoraClient = null;
   }
   setVoiceUi(false);
+  transcriptState.textContent = 'Session ended';
 }
 
 voiceButton.addEventListener('click', () => (agoraClient ? disconnectAgora() : connectAgora()));
@@ -463,6 +665,92 @@ muteButton.addEventListener('click', async () => {
     console.error('Could not change microphone state:', error);
     voiceState.textContent = 'Could not change microphone state. Please try again.';
   }
+});
+interruptButton.addEventListener('click', async () => {
+  if (!agoraAgentId) return;
+  interruptButton.disabled = true;
+  transcriptState.textContent = 'Interrupting…';
+  try {
+    await getJson(`${AGORA_SERVER}/api/ai/interrupt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: agoraAgentId }),
+    });
+    for (const track of remoteAudioTracks.values()) track.stop();
+    voiceState.textContent = 'Agent interrupted — you can speak now.';
+    transcriptState.textContent = 'Listening…';
+  } catch (error) {
+    console.error('Could not interrupt the Agora agent:', error);
+    voiceState.textContent = 'Could not interrupt the agent. Please try again.';
+    transcriptState.textContent = 'Live';
+  } finally {
+    if (agoraClient) interruptButton.disabled = false;
+  }
+});
+participantRoleInput.addEventListener('change', () => {
+  teacherControls.hidden = participantRoleInput.value !== 'teacher';
+  teacherDashboard.hidden = participantRoleInput.value !== 'teacher';
+  raiseHandButton.hidden = participantRoleInput.value === 'teacher';
+});
+saveLessonButton.addEventListener('click', async () => {
+  if (!classroomState || participantRoleInput.value !== 'teacher') {
+    voiceState.textContent = 'Join the classroom as the teacher before saving the lesson.';
+    return;
+  }
+  try {
+    const state = await classroomRequest('/api/classroom/lesson', {
+      code: classroomCode(), uid: AGORA_UID, lesson: lessonData(),
+    });
+    renderClassroom(state);
+    voiceState.textContent = `Lesson context saved: ${state.lesson.topic}. The classroom dashboard and report now use this objective and quiz plan.`;
+    await reportClassroomEvent({ type: 'lesson_context', speaker: participant().name, text: `Lesson: ${state.lesson.topic}. Objective: ${state.lesson.objective}` });
+  } catch (error) {
+    voiceState.textContent = error.message || 'Could not save lesson context.';
+  }
+});
+document.querySelectorAll('[data-teacher-control]').forEach(button => {
+  button.addEventListener('click', async () => {
+    if (!classroomState || participantRoleInput.value !== 'teacher') return;
+    const action = button.dataset.teacherControl;
+    try {
+      const state = await classroomRequest('/api/classroom/control', { code: classroomCode(), uid: AGORA_UID, action });
+      renderClassroom(state);
+      if ((action === 'allow' || action === 'quiz') && !agoraAgentId) await startClassroomAgent();
+      if (action === 'pause' && agoraAgentId) {
+        await getJson(`${AGORA_SERVER}/api/ai/stop`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId: agoraAgentId }),
+        });
+        agoraAgentId = null;
+        voiceState.textContent = 'Nexora is paused. The teacher has the floor.';
+      }
+      if (action === 'allow') voiceState.textContent = 'Nexora may now answer after a natural pause.';
+      if (action === 'quiz') {
+        voiceState.textContent = `Spoken quiz enabled: ${state.lesson.quizQuestion}`;
+        await reportClassroomEvent({ type: 'teacher_control', speaker: participant().name, text: `Teacher started spoken quiz: ${state.lesson.quizQuestion}` });
+      }
+      if (action === 'summary') {
+        const summary = await classroomRequest('/api/classroom/summary', { code: classroomCode() });
+        const gaps = summary.learningGaps.length ? summary.learningGaps.map(([term, count]) => {
+          const learners = summary.studentsNeedingSupport?.[term]?.join(', ');
+          return `${term} (${count})${learners ? ` — ${learners}` : ''}`;
+        }).join('\n') : 'No repeated gaps detected yet';
+        classInsights.hidden = false;
+        const quizAnswers = Object.values(summary.quiz?.answers || {});
+        const quizResult = quizAnswers.length ? `${quizAnswers.filter(answer => answer.correct).length}/${quizAnswers.length} expected-answer matches` : 'No quiz responses captured';
+        classInsights.textContent = `CLASS INSIGHTS\nLesson: ${summary.lesson?.topic || 'Not set'} · ${summary.lesson?.objective || 'No objective saved'}\n${summary.participants} participants · ${summary.messages} captured learning turns · ${summary.confusionSignals} confusion signals\nRecurring gaps / students needing support:\n${gaps}\nSpoken quiz: ${quizResult}\n${summary.recommendation}`;
+      }
+    } catch (error) {
+      voiceState.textContent = error.message || 'Teacher control could not be applied.';
+    }
+  });
+});
+raiseHandButton.addEventListener('click', async () => {
+  try {
+    renderClassroom(await classroomRequest('/api/classroom/hand', { code: classroomCode(), uid: AGORA_UID }));
+    voiceState.textContent = 'Hand raised. Your teacher can invite Nexora to help.';
+    await reportClassroomEvent({ type: 'student_request', speaker: participant().name, text: 'Student raised a hand and requested help.' });
+  } catch (error) { voiceState.textContent = error.message || 'Could not raise your hand.'; }
 });
 window.addEventListener('beforeunload', () => { microphoneTrack?.close(); agoraClient?.leave(); });
 

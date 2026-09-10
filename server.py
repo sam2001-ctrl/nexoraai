@@ -21,6 +21,7 @@ import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Lock
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
@@ -62,6 +63,8 @@ AGORA_AGENT_UID = int(os.environ.get("AGORA_AGENT_UID", "14297"))
 
 PORT = int(os.environ.get("PORT", "8000"))
 PROJECT_DIR = Path(__file__).resolve().parent
+CLASSROOMS = {}
+CLASSROOM_LOCK = Lock()
 
 # Answer directly, don't hedge, don't pad. This is the single biggest fix
 # for the "vague answers" complaint - most of that came from the model
@@ -80,7 +83,11 @@ Rules:
 - Never say "as an AI" or similar. Never apologize unless you made an
   actual mistake in this conversation.
 - Ask at most one clarifying question, and only when you truly cannot
-  proceed without it."""
+  proceed without it.
+- Always complete your final sentence. If space is limited, give a shorter
+  complete answer instead of stopping in the middle of a sentence."""
+
+CHAT_MAX_TOKENS = 600
 
 STATIC_FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -154,20 +161,76 @@ def agora_request(path, payload):
         raise RuntimeError(f"Could not reach Agora: {error.reason}") from error
 
 
-def start_agora_agent(channel, client_uid):
+def start_agora_agent(channel, participant_uids):
     payload = {
         "name": f"nexora-{int(time.time())}",
         "pipeline_id": required("AGORA_PIPELINE_ID", AGORA_PIPELINE_ID),
         "properties": {
             "channel": channel,
             "agent_rtc_uid": str(AGORA_AGENT_UID),
-            "remote_rtc_uids": [str(client_uid)],
+            "remote_rtc_uids": [str(uid) for uid in participant_uids],
             "token": generate_agora_token(channel, AGORA_AGENT_UID),
             "enable_string_uid": False,
             "idle_timeout": 60,
         },
     }
     return agora_request("/join", payload)
+
+
+def classroom_key(code):
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "", str(code or ""))[:32]
+    if not cleaned:
+        raise ValueError("A classroom code is required")
+    return cleaned.upper()
+
+
+def get_classroom(code):
+    code = classroom_key(code)
+    with CLASSROOM_LOCK:
+        return CLASSROOMS.setdefault(code, {
+            "code": code, "participants": {}, "events": [], "gaps": {}, "gap_users": {},
+            "ai_allowed": False, "quiz_active": False, "agent_id": None,
+            "lesson": {}, "confusion_signals": [], "quiz": {"answers": {}},
+        })
+
+
+def classroom_snapshot(room):
+    participants = list(room["participants"].values())
+    gaps = sorted(room["gaps"].items(), key=lambda item: item[1], reverse=True)[:5]
+    return {
+        "code": room["code"], "participants": participants,
+        "events": room["events"][-60:], "gaps": gaps,
+        "aiAllowed": room["ai_allowed"], "quizActive": room["quiz_active"],
+        "lesson": room["lesson"], "confusionSignals": room["confusion_signals"][-8:],
+        "quiz": {"active": room["quiz_active"], "answers": room["quiz"]["answers"]},
+    }
+
+
+def capture_learning_gap(room, text, speaker):
+    # Lightweight, explainable heuristic for a hackathon prototype: repeated
+    # question language is evidence of a shared concept gap, not a diagnosis.
+    signal_match = re.search(r"\?|confus|don't understand|dont understand|explain|help|what is|why|simpler|again", text, re.I)
+    if not signal_match:
+        return
+    room["confusion_signals"].append({"speaker": speaker, "text": text[:160], "at": int(time.time() * 1000)})
+    room["confusion_signals"] = room["confusion_signals"][-40:]
+    words = re.findall(r"[A-Za-z]{4,}", text.lower())
+    ignored = {"what", "with", "this", "that", "from", "have", "does", "about", "please", "explain", "understand", "help"}
+    for word in words:
+        if word not in ignored:
+            room["gaps"][word] = room["gaps"].get(word, 0) + 1
+            room["gap_users"].setdefault(word, set()).add(speaker)
+
+
+def clean_lesson(data):
+    return {
+        "topic": re.sub(r"\s+", " ", str(data.get("topic") or "")).strip()[:80],
+        "level": re.sub(r"\s+", " ", str(data.get("level") or "")).strip()[:40],
+        "language": re.sub(r"\s+", " ", str(data.get("language") or "")).strip()[:40],
+        "objective": re.sub(r"\s+", " ", str(data.get("objective") or "")).strip()[:160],
+        "quizQuestion": re.sub(r"\s+", " ", str(data.get("quizQuestion") or "")).strip()[:240],
+        "expectedAnswer": re.sub(r"\s+", " ", str(data.get("expectedAnswer") or "")).strip().lower()[:100],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +454,11 @@ def usable_ai_reply(reply):
     )
 
 
+def generation_was_cut_off(reason):
+    """Normalise provider-specific stop reasons that mean output was truncated."""
+    return str(reason or "").upper() in {"LENGTH", "MAX_TOKENS", "MAX_TOKEN", "TOKEN_LIMIT"}
+
+
 # ---------------------------------------------------------------------------
 # HTTP handler
 # ---------------------------------------------------------------------------
@@ -437,6 +505,12 @@ class NexoraHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/health":
             return self.send_json(200, {"success": True})
+        if path == "/api/classroom":
+            try:
+                code = parse_qs(urlparse(self.path).query).get("code", [""])[0]
+                return self.send_json(200, classroom_snapshot(get_classroom(code)))
+            except ValueError as error:
+                return self.send_json(400, {"error": str(error)})
         if path == "/agora/token":
             try:
                 query = parse_qs(urlparse(self.path).query)
@@ -461,7 +535,10 @@ class NexoraHandler(BaseHTTPRequestHandler):
             if self.path == "/api/ai/start":
                 if data.get("uid") is None:
                     raise ValueError("uid is required to start the Agora agent")
-                agent = start_agora_agent(data.get("channel", AGORA_CHANNEL), data["uid"])
+                participant_uids = data.get("participantUids") or [data["uid"]]
+                agent = start_agora_agent(data.get("channel", AGORA_CHANNEL), participant_uids)
+                if data.get("classroomCode"):
+                    get_classroom(data["classroomCode"])["agent_id"] = agent.get("agent_id") or agent.get("agentId")
                 return self.send_json(200, {"success": True, "agent": agent})
 
             if self.path == "/api/ai/stop":
@@ -470,6 +547,97 @@ class NexoraHandler(BaseHTTPRequestHandler):
                     raise ValueError("agentId is required")
                 agora_request(f"/agents/{agent_id}/leave", {})
                 return self.send_json(200, {"success": True})
+
+            if self.path == "/api/ai/interrupt":
+                agent_id = data.get("agentId")
+                if not agent_id:
+                    raise ValueError("agentId is required")
+                # This keeps interruption server-side: the browser never sees
+                # Agora REST credentials and the agent, rather than only its
+                # local audio playback, is asked to stop the current turn.
+                agora_request(f"/agents/{agent_id}/interrupt", {})
+                return self.send_json(200, {"success": True})
+
+            if self.path == "/api/classroom/join":
+                room = get_classroom(data.get("code"))
+                participant = data.get("participant") or {}
+                uid = str(participant.get("uid") or "")
+                name = re.sub(r"\s+", " ", str(participant.get("name") or "")).strip()[:40]
+                role = participant.get("role")
+                if not uid or not name or role not in {"teacher", "student"}:
+                    raise ValueError("Classroom participant requires a name, UID, and teacher or student role")
+                room["participants"][uid] = {"uid": uid, "name": name, "role": role, "handRaised": False}
+                return self.send_json(200, classroom_snapshot(room))
+
+            if self.path == "/api/classroom/event":
+                room = get_classroom(data.get("code"))
+                event = data.get("event") or {}
+                text = re.sub(r"\s+", " ", str(event.get("text") or "")).strip()[:800]
+                if text:
+                    item = {"type": str(event.get("type") or "message")[:30], "speaker": str(event.get("speaker") or "Nexora")[:40], "text": text, "at": int(time.time() * 1000)}
+                    room["events"].append(item)
+                    if item["type"] in {"student_transcript", "student_request"}:
+                        capture_learning_gap(room, text, item["speaker"])
+                    if room["quiz_active"] and item["type"] == "student_transcript":
+                        expected = room["lesson"].get("expectedAnswer", "")
+                        if expected:
+                            correct = expected in text.lower()
+                            room["quiz"]["answers"][item["speaker"]] = {"text": text, "correct": correct}
+                    room["events"] = room["events"][-120:]
+                return self.send_json(200, classroom_snapshot(room))
+
+            if self.path == "/api/classroom/lesson":
+                room = get_classroom(data.get("code"))
+                actor = room["participants"].get(str(data.get("uid")))
+                if not actor or actor["role"] != "teacher":
+                    raise ValueError("Only the teacher can set lesson context")
+                lesson = clean_lesson(data.get("lesson") or {})
+                if not lesson["topic"] or not lesson["objective"]:
+                    raise ValueError("A lesson topic and objective are required")
+                room["lesson"] = lesson
+                return self.send_json(200, classroom_snapshot(room))
+
+            if self.path == "/api/classroom/control":
+                room = get_classroom(data.get("code"))
+                actor = room["participants"].get(str(data.get("uid")))
+                if not actor or actor["role"] != "teacher":
+                    raise ValueError("Only the teacher can control the co-teacher")
+                action = data.get("action")
+                if action == "allow": room["ai_allowed"] = True
+                elif action == "pause": room["ai_allowed"] = False
+                elif action == "quiz":
+                    if not room["lesson"].get("quizQuestion"):
+                        raise ValueError("Save a lesson plan with a spoken quiz question first")
+                    room["quiz_active"] = True
+                    room["quiz"] = {"answers": {}}
+                    room["ai_allowed"] = True
+                elif action == "summary": pass
+                else: raise ValueError("Unknown classroom control")
+                return self.send_json(200, classroom_snapshot(room))
+
+            if self.path == "/api/classroom/hand":
+                room = get_classroom(data.get("code"))
+                participant = room["participants"].get(str(data.get("uid")))
+                if not participant: raise ValueError("Join the classroom before raising a hand")
+                participant["handRaised"] = True
+                return self.send_json(200, classroom_snapshot(room))
+
+            if self.path == "/api/classroom/summary":
+                room = get_classroom(data.get("code"))
+                gaps = sorted(room["gaps"].items(), key=lambda item: item[1], reverse=True)[:3]
+                students = [p["name"] for p in room["participants"].values() if p["role"] == "student"]
+                support = {
+                    term: sorted(name for name in room["gap_users"].get(term, set()) if name != "Nexora")
+                    for term, _count in gaps
+                }
+                summary = {
+                    "participants": len(room["participants"]), "students": students,
+                    "messages": len(room["events"]), "learningGaps": gaps, "studentsNeedingSupport": support,
+                    "lesson": room["lesson"], "confusionSignals": len(room["confusion_signals"]),
+                    "quiz": room["quiz"],
+                    "recommendation": "Revisit the most repeated concept with a worked example, then use a one-question spoken check-in.",
+                }
+                return self.send_json(200, summary)
 
             if self.path != "/api/chat":
                 return self.send_json(404, {"error": "Not found"})
@@ -532,23 +700,34 @@ class NexoraHandler(BaseHTTPRequestHandler):
                 ),
             })
 
+        project_incubator = bool(data.get("projectIncubator"))
+        if project_incubator:
+            messages.insert(0, {
+                "role": "system",
+                "content": (
+                    "This is a Project Incubator request. Give a complete, detailed project map that "
+                    "covers every requested section. The normal short-answer limit does not apply."
+                ),
+            })
+
         if CHAT_PROVIDER == "groq":
-            return self.send_json(200, {"reply": self.ask_groq(messages), "sources": sources})
+            return self.send_json(200, {"reply": self.ask_groq(messages, unlimited=project_incubator), "sources": sources})
         if CHAT_PROVIDER == "gemini":
-            return self.send_json(200, {"reply": self.ask_gemini(messages, data.get("model")), "sources": sources})
+            return self.send_json(200, {"reply": self.ask_gemini(messages, data.get("model"), unlimited=project_incubator), "sources": sources})
         if CHAT_PROVIDER == "openrouter":
-            return self.send_json(200, {"reply": self.ask_openrouter(messages, data.get("model")), "sources": sources})
+            return self.send_json(200, {"reply": self.ask_openrouter(messages, data.get("model"), unlimited=project_incubator), "sources": sources})
         raise ValueError("CHAT_PROVIDER must be 'openrouter', 'groq', or 'gemini'")
 
-    def ask_groq(self, messages):
+    def ask_groq(self, messages, unlimited=False):
         if not GROQ_API_KEY:
             raise ValueError("GROQ_API_KEY is missing from the server environment")
         payload = {
             "model": GROQ_MODEL,
             "messages": [{"role": "system", "content": CHAT_INSTRUCTIONS}, *messages],
-            "max_tokens": 320,
             "temperature": 0.4,
         }
+        if not unlimited:
+            payload["max_tokens"] = CHAT_MAX_TOKENS
         request = Request(
             "https://api.groq.com/openai/v1/chat/completions",
             data=json.dumps(payload).encode(),
@@ -556,10 +735,27 @@ class NexoraHandler(BaseHTTPRequestHandler):
             method="POST",
         )
         result = request_ai(request, "Groq")
-        reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        choice = result.get("choices", [{}])[0]
+        reply = choice.get("message", {}).get("content", "")
+        if reply and generation_was_cut_off(choice.get("finish_reason")):
+            continuation_payload = {
+                **payload,
+                "messages": [*payload["messages"], {"role": "assistant", "content": reply}, {
+                    "role": "user",
+                    "content": "Continue from the exact final word. Do not repeat anything. Finish the answer in complete sentences.",
+                }],
+                "max_tokens": 240,
+            }
+            continuation_request = Request(
+                "https://api.groq.com/openai/v1/chat/completions",
+                data=json.dumps(continuation_payload).encode(),
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {GROQ_API_KEY}"}, method="POST",
+            )
+            continuation = request_ai(continuation_request, "Groq").get("choices", [{}])[0].get("message", {}).get("content", "")
+            reply += continuation
         return reply or "I couldn't generate a response."
 
-    def ask_gemini(self, messages, requested_model):
+    def ask_gemini(self, messages, requested_model, unlimited=False):
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is missing from the server environment")
         contextual_instructions = "\n\n".join(
@@ -573,8 +769,10 @@ class NexoraHandler(BaseHTTPRequestHandler):
         payload = {
             "systemInstruction": {"parts": [{"text": f"{CHAT_INSTRUCTIONS}\n\n{contextual_instructions}"}]},
             "contents": contents,
-            "generationConfig": {"maxOutputTokens": 320, "temperature": 0.4},
+            "generationConfig": {"temperature": 0.4},
         }
+        if not unlimited:
+            payload["generationConfig"]["maxOutputTokens"] = CHAT_MAX_TOKENS
         request = Request(
             f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}",
             data=json.dumps(payload).encode(),
@@ -582,19 +780,36 @@ class NexoraHandler(BaseHTTPRequestHandler):
             method="POST",
         )
         result = request_ai(request, "Gemini")
-        parts = result.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        candidate = result.get("candidates", [{}])[0]
+        parts = candidate.get("content", {}).get("parts", [])
         reply = "".join(p.get("text", "") for p in parts)
+        if reply and generation_was_cut_off(candidate.get("finishReason")):
+            continuation_payload = {
+                **payload,
+                "contents": [*contents, {"role": "model", "parts": [{"text": reply}]}, {
+                    "role": "user", "parts": [{"text": "Continue from the exact final word. Do not repeat anything. Finish in complete sentences."}],
+                }],
+                "generationConfig": {"maxOutputTokens": 240, "temperature": 0.4},
+            }
+            continuation_request = Request(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}",
+                data=json.dumps(continuation_payload).encode(), headers={"Content-Type": "application/json"}, method="POST",
+            )
+            continuation_result = request_ai(continuation_request, "Gemini")
+            continuation_parts = continuation_result.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+            reply += "".join(p.get("text", "") for p in continuation_parts)
         return reply or "I couldn't generate a response."
 
-    def ask_openrouter(self, messages, requested_model):
+    def ask_openrouter(self, messages, requested_model, unlimited=False):
         if not OPENROUTER_API_KEY:
             raise ValueError("OPENROUTER_API_KEY is missing from the server environment")
         payload = {
             "model": requested_model or OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": CHAT_INSTRUCTIONS}, *messages],
-            "max_tokens": 320,
             "temperature": 0.4,
         }
+        if not unlimited:
+            payload["max_tokens"] = CHAT_MAX_TOKENS
         request = Request(
             "https://openrouter.ai/api/v1/chat/completions",
             data=json.dumps(payload).encode(),
@@ -602,16 +817,36 @@ class NexoraHandler(BaseHTTPRequestHandler):
             method="POST",
         )
         result = request_ai(request, "OpenRouter")
-        reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+        choice = result.get("choices", [{}])[0]
+        reply = choice.get("message", {}).get("content", "")
         # Free routing can return safety metadata instead of a completion.
         # Retry once and never display that internal provider text to students.
         if not usable_ai_reply(reply):
             result = request_ai(request, "OpenRouter")
-            reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            choice = result.get("choices", [{}])[0]
+            reply = choice.get("message", {}).get("content", "")
         if not usable_ai_reply(reply):
             raise RuntimeError(
                 "Nexora is reconnecting to its learning engine. Please send that question once more."
             )
+        if generation_was_cut_off(choice.get("finish_reason")):
+            continuation_payload = {
+                **payload,
+                "messages": [*payload["messages"], {"role": "assistant", "content": reply}, {
+                    "role": "user",
+                    "content": "Continue from the exact final word. Do not repeat anything. Finish the answer in complete sentences.",
+                }],
+                "max_tokens": 240,
+            }
+            continuation_request = Request(
+                "https://openrouter.ai/api/v1/chat/completions",
+                data=json.dumps(continuation_payload).encode(),
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {OPENROUTER_API_KEY}"}, method="POST",
+            )
+            continuation_choice = request_ai(continuation_request, "OpenRouter").get("choices", [{}])[0]
+            continuation = continuation_choice.get("message", {}).get("content", "")
+            if usable_ai_reply(continuation):
+                reply += continuation
         return reply
 
 

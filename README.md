@@ -10,11 +10,9 @@ One page, two live modes, no mode-switching required:
 - Text chat calls OpenRouter, Groq, or Gemini through the local server.
 - The voice window starts and stops an Agora Conversational AI session:
   it joins the browser, starts your published Agora AI Studio pipeline,
-  plays the agent's remote audio, and shuts the agent down when the call
-  ends. It shows a small draggable 3D globe instead of a caption panel -
-  a proper live transcript would need Agora's conversation-transcript
-  API wired up separately, which this project doesn't do, so it isn't
-  faked here.
+  plays the agent's remote audio, renders transcript events from Agora's
+  RTC data stream, and shuts the agent down when the call ends. It also
+  exposes an agent-interrupt control through the local server.
 
 ## Before anything else: rotate your keys
 
@@ -75,6 +73,10 @@ and screenshots too.
    py server.py
    ```
 
+   In your published Agora AI Studio pipeline, enable conversation
+   transcription/data-stream output. The live transcript panel renders these
+   Agora events; it intentionally does not use browser speech recognition.
+
 5. Visit `http://localhost:8000`. Scroll to the console section (or click
    "Launch console" in the nav) to try chat or voice. For voice, allow
    microphone access and select "Start conversation"; select it again to
@@ -114,6 +116,20 @@ different endpoint.
   interruptions or duplicated audio capture.
 
 ## Conversation quality
+
+## Classroom co-teacher demo
+
+The Agora console can also run as a shared classroom. Open the app in each
+participant browser, enter the same room code, a display name, and the correct
+role. Have students join before the teacher selects **Allow Nexora**; this
+starts the Agora co-teacher with the classroom roster. The teacher can pause
+the agent, save the lesson topic/objective/language, begin a spoken quiz, and
+generate a post-class insight card. The dashboard counts student confusion
+signals and repeated concepts from final live transcript events. Quiz scoring
+uses the teacher-provided expected keyword, so it is transparent and should be
+treated as a quick classroom check—not a formal assessment. The
+server keeps only in-memory classroom events for the running demo process;
+they are not a permanent student record.
 
 - Chat answers are capped at 450 tokens and instructed to stay concise
   (2-6 sentences by default). The app also keeps only the most recent 16
