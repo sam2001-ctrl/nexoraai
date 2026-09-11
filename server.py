@@ -168,6 +168,9 @@ def start_agora_agent(channel, participant_uids):
         "properties": {
             "channel": channel,
             "agent_rtc_uid": str(AGORA_AGENT_UID),
+            # Agora expects the exact numeric RTC user IDs that have joined
+            # the room. Keep them as JSON strings while retaining numeric RTC
+            # mode (`enable_string_uid: false`).
             "remote_rtc_uids": [str(uid) for uid in participant_uids],
             "token": generate_agora_token(channel, AGORA_AGENT_UID),
             "enable_string_uid": False,
@@ -491,6 +494,10 @@ class NexoraHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        # Keep the HTML shell, styles, and client logic in lock-step during
+        # rapid classroom-demo updates; a mixed cached version can otherwise
+        # reference controls that do not exist in the loaded page.
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 
@@ -537,9 +544,24 @@ class NexoraHandler(BaseHTTPRequestHandler):
                     raise ValueError("uid is required to start the Agora agent")
                 participant_uids = data.get("participantUids") or [data["uid"]]
                 agent = start_agora_agent(data.get("channel", AGORA_CHANNEL), participant_uids)
+                agent_id = agent.get("agent_id") or agent.get("agentId")
+                greeting_error = None
+                if agent_id:
+                    try:
+                        # A controlled spoken greeting is both a better
+                        # classroom entrance and an end-to-end TTS check. It
+                        # proves the agent can publish audio before students
+                        # depend on speech recognition or LLM turn-taking.
+                        agora_request(f"/agents/{agent_id}/speak", {
+                            "text": "Hello, I am Nexora, your classroom co-teacher. I will wait for the teacher's invitation before helping.",
+                            "priority": "INTERRUPT",
+                            "interruptable": True,
+                        })
+                    except Exception as error:
+                        greeting_error = str(error)
                 if data.get("classroomCode"):
-                    get_classroom(data["classroomCode"])["agent_id"] = agent.get("agent_id") or agent.get("agentId")
-                return self.send_json(200, {"success": True, "agent": agent})
+                    get_classroom(data["classroomCode"])["agent_id"] = agent_id
+                return self.send_json(200, {"success": True, "agent": agent, "greetingError": greeting_error})
 
             if self.path == "/api/ai/stop":
                 agent_id = data.get("agentId")
@@ -567,6 +589,12 @@ class NexoraHandler(BaseHTTPRequestHandler):
                 if not uid or not name or role not in {"teacher", "student"}:
                     raise ValueError("Classroom participant requires a name, UID, and teacher or student role")
                 room["participants"][uid] = {"uid": uid, "name": name, "role": role, "handRaised": False}
+                # The active agent was created with the prior participant
+                # list. Record late arrivals so the teacher sees why a quick
+                # pause/re-allow may be needed to include them in the voice
+                # subscription list for this prototype.
+                if room["agent_id"]:
+                    room["events"].append({"type": "participant_joined", "speaker": name, "text": "Joined after the co-teacher started.", "at": int(time.time() * 1000)})
                 return self.send_json(200, classroom_snapshot(room))
 
             if self.path == "/api/classroom/event":
@@ -620,6 +648,14 @@ class NexoraHandler(BaseHTTPRequestHandler):
                 participant = room["participants"].get(str(data.get("uid")))
                 if not participant: raise ValueError("Join the classroom before raising a hand")
                 participant["handRaised"] = True
+                return self.send_json(200, classroom_snapshot(room))
+
+            if self.path == "/api/classroom/leave":
+                room = get_classroom(data.get("code"))
+                uid = str(data.get("uid") or "")
+                participant = room["participants"].pop(uid, None)
+                if participant:
+                    room["events"].append({"type": "participant_left", "speaker": participant["name"], "text": "Left the classroom.", "at": int(time.time() * 1000)})
                 return self.send_json(200, classroom_snapshot(room))
 
             if self.path == "/api/classroom/summary":

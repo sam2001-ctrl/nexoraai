@@ -325,6 +325,8 @@ let agoraAgentId = null;
 let isConnectingAgora = false;
 let isMicrophoneMuted = false;
 const remoteAudioTracks = new Map();
+let agentAudioPublished = false;
+let agentReadinessTimer = null;
 
 const voiceButton = document.querySelector('#voiceButton');
 const voiceButtonText = document.querySelector('#voiceButtonText');
@@ -333,6 +335,7 @@ const voiceStatus = document.querySelector('#voiceStatus');
 const muteButton = document.querySelector('#muteButton');
 const muteButtonText = document.querySelector('#muteButtonText');
 const interruptButton = document.querySelector('#interruptButton');
+const leaveClassButton = document.querySelector('#leaveClassButton');
 const voiceTranscript = document.querySelector('#voiceTranscript');
 const transcriptState = document.querySelector('#transcriptState');
 const transcriptNodes = new Map();
@@ -375,7 +378,8 @@ async function classroomRequest(path, body) {
 
 function renderClassroom(state) {
   classroomState = state;
-  classroomStatus.textContent = `${state.code} · ${state.participants.length} present`;
+  if (classroomStatus) classroomStatus.textContent = `${state.code} · ${state.participants.length} present`;
+  if (!participantList) return;
   participantList.replaceChildren();
   state.participants.forEach(member => {
     const item = document.createElement('span');
@@ -383,14 +387,17 @@ function renderClassroom(state) {
     item.textContent = `${member.name} · ${member.role}${member.handRaised ? ' ✋' : ''}`;
     participantList.append(item);
   });
-  teacherControls.hidden = participantRoleInput.value !== 'teacher';
-  teacherDashboard.hidden = participantRoleInput.value !== 'teacher';
-  raiseHandButton.hidden = participantRoleInput.value === 'teacher';
+  if (teacherControls) teacherControls.hidden = participantRoleInput.value !== 'teacher';
+  if (teacherDashboard) teacherDashboard.hidden = participantRoleInput.value !== 'teacher';
+  if (raiseHandButton) raiseHandButton.hidden = participantRoleInput.value === 'teacher';
   renderTeacherDashboard(state);
   if (!state.aiAllowed && agoraClient) voiceState.textContent = 'Nexora is paused — the teacher has speaking priority.';
 }
 
 function renderTeacherDashboard(state) {
+  // A deployed page can briefly hold an older HTML shell while the newer
+  // JavaScript is cached. Never block the Agora classroom join in that case.
+  if (!lessonStatus || !handCount || !gapCount || !quizScore || !gapFeed || !quizPrompt) return;
   const lesson = state.lesson || {};
   lessonStatus.textContent = lesson.topic ? `${lesson.topic} · ${lesson.level || 'lesson'}` : 'Lesson not set';
   handCount.textContent = state.participants.filter(member => member.handRaised).length;
@@ -453,12 +460,13 @@ async function setMicrophoneMuted(muted) {
 
 function setVoiceUi(live) {
   voiceButton.classList.toggle('listening', live);
-  voiceButtonText.textContent = live ? 'End Agora session' : 'Start Agora session';
-  voiceState.textContent = live ? 'Agora agent is listening' : 'Ready to create a secure Agora session';
+  if (voiceButtonText) voiceButtonText.textContent = live ? 'End Agora session' : 'Join live classroom';
+  if (!live) voiceState.textContent = 'Join a classroom to create a secure Agora session';
   voiceStatus.classList.toggle('live', live);
   voiceStatus.innerHTML = `<i class="dot"></i>${live ? 'Live' : 'Ready'}`;
   muteButton.disabled = !live;
   interruptButton.disabled = !live;
+  if (leaveClassButton) leaveClassButton.disabled = !live;
   voiceFace?.setState(live ? 'active' : 'idle');
 }
 
@@ -541,6 +549,8 @@ async function playRemoteAudio(user, mediaType) {
   if (!track || remoteAudioTracks.get(user.uid) === track) return;
   remoteAudioTracks.get(user.uid)?.stop();
   track.play();
+  agentAudioPublished = true;
+  if (agentReadinessTimer) window.clearTimeout(agentReadinessTimer);
   remoteAudioTracks.set(user.uid, track);
   voiceFace?.attachAudioTrack(track.getMediaStreamTrack?.());
 }
@@ -588,6 +598,7 @@ async function connectAgora() {
     }
 
     setVoiceUi(true);
+    // setVoiceUi controls buttons; the status remains role-specific above.
     transcriptState.textContent = 'Live';
   } catch (error) {
     console.error('Agora connection error:', error);
@@ -613,11 +624,35 @@ async function startClassroomAgent() {
   });
   agoraAgentId = agentResult.agent?.agent_id || agentResult.agent?.agentId;
   if (!agoraAgentId) throw new Error('Agora started a co-teacher but did not return its ID.');
+  if (agentResult.greetingError) {
+    const failedAgentId = agoraAgentId;
+    agoraAgentId = null;
+    try {
+      await getJson(`${AGORA_SERVER}/api/ai/stop`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: failedAgentId }),
+      });
+    } catch (stopError) { console.warn('Could not clean up failed Agora agent:', stopError); }
+    throw new Error(`Agora started the agent, but its test greeting failed: ${agentResult.greetingError}`);
+  }
+  const status = String(agentResult.agent?.status || 'STARTING').toUpperCase();
+  transcriptState.textContent = `Agent ${status.toLowerCase()}`;
+  voiceState.textContent = `Agora co-teacher ${status.toLowerCase()}. You should hear its greeting now.`;
+  agentAudioPublished = false;
+  if (agentReadinessTimer) window.clearTimeout(agentReadinessTimer);
+  agentReadinessTimer = window.setTimeout(() => {
+    if (!agentAudioPublished && agoraAgentId) {
+      voiceState.textContent = 'Agora started the agent, but it has not published audio. Check that your AI Studio pipeline has a working ASR, LLM, and TTS configuration.';
+      transcriptState.textContent = 'Agent has no audio';
+    }
+  }, 15000);
 }
 
 async function disconnectAgora(stopAgent = true) {
   const agentId = agoraAgentId;
   agoraAgentId = null;
+  if (agentReadinessTimer) window.clearTimeout(agentReadinessTimer);
+  agentReadinessTimer = null;
 
   if (stopAgent && agentId) {
     try {
@@ -658,6 +693,28 @@ async function disconnectAgora(stopAgent = true) {
 }
 
 voiceButton.addEventListener('click', () => (agoraClient ? disconnectAgora() : connectAgora()));
+leaveClassButton?.addEventListener('click', async () => {
+  leaveClassButton.disabled = true;
+  const code = classroomCode();
+  try {
+    await disconnectAgora();
+    if (classroomState && code) {
+      const state = await classroomRequest('/api/classroom/leave', { code, uid: AGORA_UID });
+      renderClassroom(state);
+    }
+    classroomState = null;
+    if (classroomPoll) window.clearInterval(classroomPoll);
+    classroomPoll = null;
+    participantList?.replaceChildren();
+    classroomStatus.textContent = 'You left the classroom';
+    voiceState.textContent = 'You left the class.';
+    transcriptState.textContent = 'Not connected';
+  } catch (error) {
+    voiceState.textContent = error.message || 'Could not leave the class cleanly.';
+  } finally {
+    if (agoraClient) leaveClassButton.disabled = false;
+  }
+});
 muteButton.addEventListener('click', async () => {
   try {
     await setMicrophoneMuted(!isMicrophoneMuted);
@@ -688,11 +745,11 @@ interruptButton.addEventListener('click', async () => {
   }
 });
 participantRoleInput.addEventListener('change', () => {
-  teacherControls.hidden = participantRoleInput.value !== 'teacher';
-  teacherDashboard.hidden = participantRoleInput.value !== 'teacher';
-  raiseHandButton.hidden = participantRoleInput.value === 'teacher';
+  if (teacherControls) teacherControls.hidden = participantRoleInput.value !== 'teacher';
+  if (teacherDashboard) teacherDashboard.hidden = participantRoleInput.value !== 'teacher';
+  if (raiseHandButton) raiseHandButton.hidden = participantRoleInput.value === 'teacher';
 });
-saveLessonButton.addEventListener('click', async () => {
+saveLessonButton?.addEventListener('click', async () => {
   if (!classroomState || participantRoleInput.value !== 'teacher') {
     voiceState.textContent = 'Join the classroom as the teacher before saving the lesson.';
     return;
@@ -745,7 +802,7 @@ document.querySelectorAll('[data-teacher-control]').forEach(button => {
     }
   });
 });
-raiseHandButton.addEventListener('click', async () => {
+raiseHandButton?.addEventListener('click', async () => {
   try {
     renderClassroom(await classroomRequest('/api/classroom/hand', { code: classroomCode(), uid: AGORA_UID }));
     voiceState.textContent = 'Hand raised. Your teacher can invite Nexora to help.';
