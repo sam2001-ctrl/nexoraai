@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How Nexora works</title>
+  <meta name="description" content="Ask, make, or talk: three ways Nexora helps you get unstuck." />
+  <meta name="theme-color" content="#f2f4f7" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Young+Serif&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="site-nav"><div class="wrap bar">
+  <a class="brand" href="index.html">Nexora<span>× Agora</span></a>
+  <nav aria-label="Main"><a href="index.html">Home</a><a href="how.html" aria-current="page">How it works</a><a href="projects.html">Project helper</a></nav>
+  <div class="tools">
+    <label><span class="sr-only">Language</span><select id="languageSelect"><option value="en">English</option><option value="hi">हिंदी</option><option value="es">Español</option><option value="fr">Français</option></select></label>
+    <a class="btn btn-small" href="explore.html">Explore Nexora</a>
+  </div>
+</div></header>
+<main class="wrap page">
+  <h1>Three ways to get unstuck.</h1>
+  <p class="lede">Start wherever your curiosity takes you.</p>
+  <div class="steps">
+    <article class="step"><h2>Ask</h2><p>Type a question when a topic feels confusing. Nexora explains it in plain steps, and you can ask it to go simpler or give you a challenge.</p></article>
+    <article class="step"><h2>Make</h2><p>Tell Nexora what you care about and what you wish you could fix. It helps you shape a project plan, and you do the investigating.</p></article>
+    <article class="step"><h2>Talk</h2><p>Join a live classroom and speak out loud. Nexora uses Agora Conversational AI to answer in real time once your teacher lets it in.</p></article>
+  </div>
+  <p class="actions"><a class="btn" href="explore.html">Explore Nexora</a><a class="link" href="projects.html">Start with a project</a></p>
+</main>
+<footer><div class="wrap"><span>Made by students for the Echo Sphere Hackathon.</span><button class="privacy-link" id="privacyOpen" type="button">Privacy and cookies</button></div></footer>
+<section class="privacy-banner" id="privacyBanner" aria-label="Privacy preferences" hidden><div><strong>Your privacy comes first.</strong><p>Nexora doesn’t use advertising cookies or analytics. Chat stays in this tab and is sent to the selected AI provider only when you ask a question. <button class="inline-link" id="privacyDetails" type="button">Read the privacy note</button></p></div><button class="privacy-accept" id="privacyDismiss" type="button">Got it</button></section>
+<dialog class="privacy-dialog" id="privacyDialog" aria-labelledby="privacyTitle"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form><p class="eyebrow">YOUR CHOICES</p><h2 id="privacyTitle">Privacy & cookies</h2><p>Nexora does not set advertising, analytics, or tracking cookies. The site uses only temporary browser storage needed to remember that this notice was dismissed and which language you picked. It stores no chat history or learning goals between visits.</p><h3>When you use chat or voice</h3><p>Your message is sent to the configured AI provider to generate a reply. Live voice connects to Agora when you choose to join and allow microphone access. The host may keep standard security logs. Avoid entering sensitive or identifying information.</p><h3>Your controls</h3><p>You can dismiss this notice, clear this tab by closing it, and leave an Agora room at any time. Microphone permission can be revoked in your browser settings.</p><p class="privacy-updated">This is a project privacy summary, not legal advice. Update it to match your operators, providers, retention practices, and applicable law before public launch.</p></dialog>
+<script src="site.js"></script>
+</body>
+</html>

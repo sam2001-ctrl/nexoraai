@@ -7,6 +7,7 @@
 
 const config = window.NEXORA_CONFIG || {};
 const CHAT_ENDPOINT = config.endpoint || '/api/chat';
+const languageSelect = document.querySelector('#languageSelect');
 
 /* ------------------------------------------------------------- nav scroll */
 
@@ -41,9 +42,8 @@ function requestUserLocation() {
   });
 }
 
-// Populate location quietly on load. The weather quick action below asks
-// again from a user click if the browser has not granted access yet.
-requestUserLocation();
+// Location is never requested on page load. Weather works from a city name;
+// geolocation is requested only from an explicit, user-initiated action.
 
 /* ------------------------------------------------------------------ chat */
 
@@ -65,13 +65,12 @@ let chatRequest = null;
 let isSendingChat = false;
 let projectIncubatorRequest = false;
 const GOAL_STORAGE_KEY = 'nexora-learning-goal-v1';
-let learningGoal = localStorage.getItem(GOAL_STORAGE_KEY) || '';
+let learningGoal = '';
 goalInput.value = learningGoal;
 
 function saveLearningGoal() {
   learningGoal = goalInput.value.trim().slice(0, 120);
-  if (learningGoal) localStorage.setItem(GOAL_STORAGE_KEY, learningGoal);
-  else localStorage.removeItem(GOAL_STORAGE_KEY);
+  // Optional goal lives in memory for this visit only.
   goalInput.value = learningGoal;
 }
 
@@ -79,7 +78,6 @@ saveGoalButton.addEventListener('click', saveLearningGoal);
 forgetGoalButton.addEventListener('click', () => {
   learningGoal = '';
   goalInput.value = '';
-  localStorage.removeItem(GOAL_STORAGE_KEY);
 });
 
 function setChatStatus(label, live = false) {
@@ -147,38 +145,19 @@ function saveHistory() {
     const cutoff = Date.now() - HISTORY_RETENTION_MS;
     const activeHistory = history.filter(message => message.createdAt >= cutoff);
     history.splice(0, history.length, ...activeHistory);
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(activeHistory));
+    // Chat is intentionally session-only; never persist message content.
   } catch (error) {
     console.warn('Could not save chat history:', error);
   }
 }
 
 function restoreHistory() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]');
-    const cutoff = Date.now() - HISTORY_RETENTION_MS;
-    const activeHistory = Array.isArray(stored)
-      ? stored.filter(message =>
-          (message.role === 'user' || message.role === 'assistant') &&
-          typeof message.content === 'string' &&
-          Number.isFinite(message.createdAt) &&
-          message.createdAt >= cutoff)
-      : [];
-    history.push(...activeHistory);
-    chat.replaceChildren();
-    if (history.length) history.forEach(message => addMessage(message.content, message.role, '', false));
-    else showWelcomeMessage();
-    saveHistory();
-  } catch (error) {
-    console.warn('Could not restore chat history:', error);
-    chat.replaceChildren();
-    showWelcomeMessage();
-  }
+  chat.replaceChildren();
+  showWelcomeMessage();
 }
 
 function clearHistory() {
   history.splice(0, history.length);
-  localStorage.removeItem(HISTORY_STORAGE_KEY);
   chat.replaceChildren();
   showWelcomeMessage();
 }
@@ -202,6 +181,7 @@ async function getReply() {
       lat: userLocation?.lat,
       lon: userLocation?.lon,
       learningGoal,
+      language: languageSelect?.value || 'en',
       research: researchToggle.checked,
       projectIncubator: projectIncubatorRequest,
     }),
@@ -410,7 +390,7 @@ function renderTeacherDashboard(state) {
     : 'No repeated learning gaps detected yet.';
   if (state.quizActive && lesson.quizQuestion) {
     quizPrompt.hidden = false;
-    quizPrompt.textContent = `SPOKEN QUIZ · ${lesson.quizQuestion}`;
+    quizPrompt.textContent = `Spoken quiz: ${lesson.quizQuestion}`;
   } else {
     quizPrompt.hidden = true;
   }
@@ -516,7 +496,7 @@ function renderTranscriptEvent(event) {
     item = document.createElement('p');
     item.className = `transcript-item ${isUser ? 'user' : 'agent'}`;
     const speaker = document.createElement('b');
-    speaker.textContent = isUser ? 'YOU' : 'NEXORA · AGORA AGENT';
+    speaker.textContent = isUser ? 'You' : 'Nexora';
     const words = document.createElement('span');
     item.append(speaker, words);
     voiceTranscript.append(item);
@@ -795,7 +775,7 @@ document.querySelectorAll('[data-teacher-control]').forEach(button => {
         classInsights.hidden = false;
         const quizAnswers = Object.values(summary.quiz?.answers || {});
         const quizResult = quizAnswers.length ? `${quizAnswers.filter(answer => answer.correct).length}/${quizAnswers.length} expected-answer matches` : 'No quiz responses captured';
-        classInsights.textContent = `CLASS INSIGHTS\nLesson: ${summary.lesson?.topic || 'Not set'} · ${summary.lesson?.objective || 'No objective saved'}\n${summary.participants} participants · ${summary.messages} captured learning turns · ${summary.confusionSignals} confusion signals\nRecurring gaps / students needing support:\n${gaps}\nSpoken quiz: ${quizResult}\n${summary.recommendation}`;
+        classInsights.textContent = `Class insights\nLesson: ${summary.lesson?.topic || 'Not set'} · ${summary.lesson?.objective || 'No objective saved'}\n${summary.participants} participants · ${summary.messages} captured learning turns · ${summary.confusionSignals} confusion signals\nRecurring gaps / students needing support:\n${gaps}\nSpoken quiz: ${quizResult}\n${summary.recommendation}`;
       }
     } catch (error) {
       voiceState.textContent = error.message || 'Teacher control could not be applied.';
@@ -817,21 +797,6 @@ window.addEventListener('beforeunload', () => { microphoneTrack?.close(); agoraC
  * own the rest of the time.
  */
 
-function glowTexture() {
-  const size = 256;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0, 'rgba(139, 123, 255, 0.55)');
-  gradient.addColorStop(0.5, 'rgba(69, 232, 209, 0.18)');
-  gradient.addColorStop(1, 'rgba(5, 6, 10, 0)');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
-  return new THREE.CanvasTexture(canvas);
-}
-
 function voiceGlowTexture() {
   const size = 256;
   const canvas = document.createElement('canvas');
@@ -846,102 +811,6 @@ function voiceGlowTexture() {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
   return new THREE.CanvasTexture(canvas);
-}
-
-function createGlobe(canvasId) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas || typeof THREE === 'undefined') return;
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-  camera.position.z = 3.1;
-
-  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-
-  const group = new THREE.Group();
-  scene.add(group);
-
-  const wireMaterial = new THREE.MeshBasicMaterial({ color: 0x8b7bff, wireframe: true, transparent: true, opacity: 0.55 });
-  const wireMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 3), wireMaterial);
-  group.add(wireMesh);
-
-  const dotsGeometry = new THREE.IcosahedronGeometry(1.012, 3);
-  const dotsMaterial = new THREE.PointsMaterial({ color: 0x45e8d1, size: 0.028, transparent: true, opacity: 0.85 });
-  group.add(new THREE.Points(dotsGeometry, dotsMaterial));
-
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false }));
-  glow.scale.set(3.4, 3.4, 1);
-  scene.add(glow);
-
-  const IDLE_SPIN = 0.0018;
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
-  let spinY = IDLE_SPIN; // current per-frame rotation speed, decays back to IDLE_SPIN
-  let spinX = 0;         // current per-frame vertical drift, decays to 0
-
-  function pointerDown(event) {
-    dragging = true;
-    const point = event.touches ? event.touches[0] : event;
-    lastX = point.clientX;
-    lastY = point.clientY;
-  }
-
-  function pointerMove(event) {
-    if (!dragging) return;
-    const point = event.touches ? event.touches[0] : event;
-    const deltaX = point.clientX - lastX;
-    const deltaY = point.clientY - lastY;
-    lastX = point.clientX;
-    lastY = point.clientY;
-    spinY = deltaX * 0.0032;
-    spinX = deltaY * 0.0032;
-    group.rotation.y += spinY;
-    group.rotation.x = Math.max(-1.1, Math.min(1.1, group.rotation.x + spinX));
-    event.preventDefault?.();
-  }
-
-  function pointerUp() {
-    dragging = false;
-  }
-
-  canvas.addEventListener('pointerdown', pointerDown);
-  canvas.addEventListener('pointermove', pointerMove);
-  window.addEventListener('pointerup', pointerUp);
-  canvas.addEventListener('touchstart', pointerDown, { passive: true });
-  canvas.addEventListener('touchmove', pointerMove, { passive: false });
-  window.addEventListener('touchend', pointerUp);
-
-  function resize() {
-    const parent = canvas.parentElement;
-    const size = Math.min(parent.clientWidth, parent.clientHeight) || parent.clientWidth || 300;
-    renderer.setSize(size, size, false);
-    camera.aspect = 1;
-    camera.updateProjectionMatrix();
-  }
-  const observer = new ResizeObserver(resize);
-  observer.observe(canvas.parentElement);
-  resize();
-
-  function tick() {
-    requestAnimationFrame(tick);
-    if (!dragging) {
-      // ease drag momentum back to a gentle idle spin, rather than snapping
-      spinY += (IDLE_SPIN - spinY) * 0.02;
-      spinX += (0 - spinX) * 0.05;
-      group.rotation.y += spinY;
-      group.rotation.x = Math.max(-1.1, Math.min(1.1, group.rotation.x + spinX));
-    }
-    renderer.render(scene, camera);
-  }
-  tick();
-}
-
-if (typeof THREE !== 'undefined') {
-  createGlobe('heroGlobe');
-} else {
-  console.warn('three.js did not load - the hero globe is skipped, everything else still works.');
 }
 
 /* ------------------------------------------------------------------ face
@@ -1293,3 +1162,15 @@ const voiceFace = typeof THREE !== 'undefined' ? createFace('voiceFace') : null;
 if (typeof THREE === 'undefined') {
   console.warn('three.js did not load - the voice face is skipped, everything else still works.');
 }
+
+/* ---------------------------------------------------- handoff from other pages
+ * The Project helper page stores a ready-made prompt and opens the chatbot.
+ */
+try {
+  const handoff = sessionStorage.getItem('nexora-handoff');
+  if (handoff) {
+    sessionStorage.removeItem('nexora-handoff');
+    const { prompt, projectIncubator } = JSON.parse(handoff);
+    if (prompt) openConsoleWithPrompt(prompt, { projectIncubator });
+  }
+} catch { /* storage unavailable: the chat opens empty */ }

@@ -14,10 +14,12 @@ Run it with `python server.py`, then open http://localhost:8000.
 """
 
 import base64
+import hashlib
 import json
 import os
 import re
 import time
+from collections import defaultdict, deque
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -65,6 +67,11 @@ PORT = int(os.environ.get("PORT", "8000"))
 PROJECT_DIR = Path(__file__).resolve().parent
 CLASSROOMS = {}
 CLASSROOM_LOCK = Lock()
+RATE_LIMITS = defaultdict(deque)
+RATE_LIMIT_LOCK = Lock()
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_REQUESTS = 30
+MAX_REQUEST_BYTES = 64 * 1024
 
 # Answer directly, don't hedge, don't pad. This is the single biggest fix
 # for the "vague answers" complaint - most of that came from the model
@@ -95,6 +102,12 @@ STATIC_FILES = {
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/api-config.js": ("api-config.js", "text/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/explore.html": ("explore.html", "text/html; charset=utf-8"),
+    "/site.js": ("site.js", "text/javascript; charset=utf-8"),
+    "/globe.js": ("globe.js", "text/javascript; charset=utf-8"),
+    "/404.html": ("404.html", "text/html; charset=utf-8"),
+    "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+    "/robots.txt": ("robots.txt", "text/plain; charset=utf-8"),
 }
 
 WEATHER_CODES = {
@@ -475,40 +488,65 @@ class NexoraHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.add_security_headers()
         self.end_headers()
         self.wfile.write(body)
 
     def read_json(self):
         try:
             length = int(self.headers.get("Content-Length", 0))
+            if length < 0 or length > MAX_REQUEST_BYTES:
+                raise ValueError("Request body is too large")
+            if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+                raise ValueError("Content-Type must be application/json")
             return json.loads(self.rfile.read(length) or b"{}")
         except (ValueError, json.JSONDecodeError) as error:
             raise ValueError("Request body must be valid JSON") from error
 
-    def serve_static(self, path):
+    def serve_static(self, path, status=200):
         filename, content_type = STATIC_FILES[path]
         body = (PROJECT_DIR / filename).read_bytes()
-        self.send_response(200)
+        etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+        # Browsers revalidate on every visit and get a cheap 304 when nothing
+        # changed, so a deploy shows up immediately without re-sending files.
+        if status == 200 and self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Cache-Control", "no-cache")
+            self.add_security_headers()
+            self.end_headers()
+            return
+        self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        # Keep the HTML shell, styles, and client logic in lock-step during
-        # rapid classroom-demo updates; a mixed cached version can otherwise
-        # reference controls that do not exist in the loaded page.
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("ETag", etag)
+        self.send_header("Cache-Control", "no-cache")
+        self.add_security_headers()
         self.end_headers()
         self.wfile.write(body)
 
     def do_OPTIONS(self):
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.end_headers()
+        return self.send_json(405, {"error": "Cross-origin requests are not supported"})
+
+    def add_security_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
+        if self.headers.get("X-Forwarded-Proto", "").lower() == "https":
+            self.send_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://download.agora.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.openai.com https://openrouter.ai https://api.groq.com https://generativelanguage.googleapis.com https://api.agora.io https://geocoding-api.open-meteo.com https://api.open-meteo.com https://en.wikipedia.org wss:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+
+    def _same_origin(self):
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True
+        from urllib.parse import urlparse
+        return urlparse(origin).netloc == self.headers.get("Host")
 
     def do_GET(self):
+        if not self._same_origin():
+            return self.send_json(403, {"error": "Cross-origin requests are not allowed"})
         path = urlparse(self.path).path
         if path == "/health":
             return self.send_json(200, {"success": True})
@@ -533,9 +571,22 @@ class NexoraHandler(BaseHTTPRequestHandler):
                 return self.send_json(500, {"error": str(error)})
         if path in STATIC_FILES:
             return self.serve_static(path)
-        return self.send_json(404, {"error": "Not found"})
+        if path.startswith("/api/") or path == "/agora/token":
+            return self.send_json(404, {"error": "Not found"})
+        return self.serve_static("/404.html", status=404)
 
     def do_POST(self):
+        if not self._same_origin():
+            return self.send_json(403, {"error": "Cross-origin requests are not allowed"})
+        now = time.time()
+        client = self.client_address[0]
+        with RATE_LIMIT_LOCK:
+            recent = RATE_LIMITS[client]
+            while recent and now - recent[0] > RATE_LIMIT_WINDOW_SECONDS:
+                recent.popleft()
+            if len(recent) >= RATE_LIMIT_REQUESTS:
+                return self.send_json(429, {"error": "Too many requests. Please wait a minute and try again."})
+            recent.append(now)
         try:
             data = self.read_json()
 
@@ -684,8 +735,8 @@ class NexoraHandler(BaseHTTPRequestHandler):
             return self.send_json(error.code, {"error": error.read().decode(errors="replace")})
         except ValueError as error:
             return self.send_json(400, {"error": str(error)})
-        except Exception as error:
-            return self.send_json(500, {"error": str(error)})
+        except Exception:
+            return self.send_json(500, {"error": "The server could not complete this request."})
 
     def handle_chat(self, data):
         messages = [
@@ -694,6 +745,12 @@ class NexoraHandler(BaseHTTPRequestHandler):
         ]
         if not messages:
             return self.send_json(400, {"error": "Please send at least one message."})
+
+        language_name = {"hi": "Hindi", "es": "Spanish", "fr": "French", "en": "English"}.get(data.get("language"), "English")
+        messages.insert(0, {
+            "role": "system",
+            "content": f"Reply in {language_name}, unless the user explicitly requests another language. Keep code and proper names unchanged.",
+        })
 
         last_message = messages[-1]["content"]
         live_context = {

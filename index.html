@@ -3,32 +3,88 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nexora × Agora — Big ideas start here</title>
-  <meta name="description" content="Nexora is a student-made learning helper powered by Agora Conversational AI." />
+  <title>Nexora × Agora: big ideas start here</title>
+  <meta name="description" content="Nexora is a learning helper built by students, with live voice powered by Agora Conversational AI." />
+  <meta name="theme-color" content="#f2f4f7" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Nexora × Agora" />
+  <meta property="og:title" content="Nexora × Agora: big ideas start here" />
+  <meta property="og:description" content="Nexora is a learning helper built by students, with live voice powered by Agora Conversational AI." />
+  <meta name="twitter:card" content="summary" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Young+Serif&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<div class="stars" aria-hidden="true"></div>
-<nav class="nav"><div class="shell nav-row">
-  <a class="brand" href="#top" aria-label="Nexora AI home"><span class="brand-mark">N</span><span>NEXORA AI</span><span class="brand-ai">× AGORA</span></a>
-  <div class="nav-links"><button data-scroll="how">How it works</button><button data-scroll="projects">Project helper</button></div>
-  <button class="nav-cta" data-scroll="console">Try Nexora</button>
-</div></nav>
-<main id="top">
-  <header class="shell hero">
-    <div class="hero-copy"><p class="eyebrow"><i></i> MADE BY STUDENTS · POWERED BY AGORA</p><h1>Nexora<br><em>AI.</em></h1><p class="lede">Nexora AI is a friendly helper for students. Use it to understand tricky topics, plan a project, or talk through an idea out loud.</p><div class="hero-actions"><button class="btn btn-primary" data-scroll="console">Ask Nexora AI <span>→</span></button><button class="btn btn-ghost" data-scroll="how">See how it works</button></div><p class="hero-note">A 6th-grade team’s hackathon project · Agora Conversational AI inside</p></div>
-    <div class="hero-visual"><div class="visual-top"><span>● LIVE IDEA SPACE</span><span>01 / 03</span></div><canvas id="heroGlobe" aria-label="Interactive Nexora globe" role="img"></canvas><div class="idea-bubble bubble-one">What if…?</div><div class="idea-bubble bubble-two">Let’s find out!</div><p>EXPLORE <b>WITHOUT LIMITS</b></p></div>
-  </header>
-  <section id="how" class="shell simple-section"><div class="section-heading"><p class="eyebrow"><i></i> SIMPLE ON PURPOSE</p><h2>Three ways to get unstuck.</h2><p>Start wherever your curiosity takes you. Nexora helps you take the next small step.</p></div><div class="capability-grid"><article><span class="step-no">01</span><span class="card-icon">✦</span><h3>Ask</h3><p>Type a question when a topic feels confusing. Get an explanation that is easier to follow.</p></article><article><span class="step-no">02</span><span class="card-icon">⌁</span><h3>Make</h3><p>Turn an interest into a project idea for class, a science fair, or just for fun.</p></article><article><span class="step-no">03</span><span class="card-icon">◌</span><h3>Talk</h3><p>Use Agora Conversational AI to have a real-time voice conversation with Nexora.</p></article></div></section>
-  <section id="projects" class="shell project-section"><div class="project-copy"><p class="eyebrow"><i></i> PROJECT INCUBATOR</p><h2>Have an idea?<br><em>Let’s grow it.</em></h2><p>Tell Nexora what you care about. It will help you make a simple plan — your ideas stay yours.</p><div class="mini-note">💡 There are no bad first ideas.</div></div><form id="projectForm" class="project-form"><h3>Start your project</h3><label>What do you like?<input id="projectInterest" required maxlength="120" placeholder="Example: space, music, clean water" /></label><label>What do you want to know or fix?<input id="projectProblem" required maxlength="180" placeholder="Example: Why do we waste so much water?" /></label><label>What do you want to make?<input id="projectOutcome" maxlength="120" placeholder="Example: a working model" /></label><button class="btn btn-primary" type="submit">Make my idea map <span>→</span></button><p>Your plan will open in the chat below.</p></form></section>
-  <section id="console" class="shell console-section"><div class="console-intro"><div><p class="eyebrow"><i></i> TRY NEXORA</p><h2>Think it.<br>Say it. <em>Build it.</em></h2></div><p>Choose chat for quick help, or join a room to try our live Agora voice experience.</p></div><div class="console-grid">
-    <section class="window chat-window" aria-label="Nexora AI chat"><div class="window-bar"><div><span class="window-dot"></span>NEXORA AI</div><span class="window-status" id="chatStatus"><i class="dot"></i>Ready</span></div><div id="chat" class="chat-log" aria-live="polite"><article class="message assistant"><div class="avatar">N</div><div class="bubble">Hi! What are you curious about today?</div></article></div><div class="composer-area"><div class="learning-tools"><label class="goal-field" for="goalInput">My goal <input id="goalInput" maxlength="120" placeholder="Example: science fair" /></label><button id="saveGoalButton" class="tool-button" type="button">Save</button><button id="forgetGoalButton" class="tool-button" type="button">Forget</button></div><div class="suggestions"><button class="suggestion" type="button">Help me pick a project</button><button class="suggestion" type="button">Explain it simply</button><button class="suggestion" type="button">Help me start</button></div><form id="chatForm" class="composer"><label class="sr-only" for="promptInput">Your message</label><textarea id="promptInput" rows="1" placeholder="Ask your question…" autocomplete="off"></textarea><button class="send-button" type="submit" id="sendButton" aria-label="Send message">Send <span>↗</span></button></form><div class="utility-row"><button class="clear-history-button" id="clearHistoryButton" type="button">Clear chat</button><label class="research-toggle"><input id="researchToggle" type="checkbox" /><span>Research mode</span></label><span class="provider-note">Nexora AI is thinking with you</span></div></div></section>
-    <section class="window voice-window" aria-label="Agora live classroom"><div class="window-bar"><div><span class="window-dot agora-dot"></span>AGORA LIVE VOICE</div><span class="window-status" id="voiceStatus"><i class="dot"></i>Ready</span></div><div class="classroom-setup"><label>Room code<input id="classroomCode" value="MATH-101" maxlength="32" /></label><label>Your name<input id="participantName" value="Teacher" maxlength="40" /></label><label>Role<select id="participantRole"><option value="teacher">Teacher</option><option value="student">Student</option></select></label><p class="classroom-note">Join the same room, then choose <b>Allow Nexora</b> when you’re ready to talk.</p></div><div class="classroom-roster"><div class="transcript-head"><span>IN THE ROOM</span><span id="classroomStatus">Join to begin</span></div><div id="participantList" class="participant-list"></div></div><section id="teacherDashboard" class="teacher-dashboard"><div class="transcript-head"><span>TEACHER SETUP</span><span id="lessonStatus">Not set</span></div><div class="lesson-plan"><label>Topic<input id="lessonTopic" value="Fractions" maxlength="80" /></label><label>Grade<select id="lessonLevel"><option>Grade 5</option><option selected>Grade 6</option><option>Grade 7</option><option>Mixed level</option></select></label><label>Language<select id="lessonLanguage"><option>English</option><option>Hinglish</option><option>Hindi</option></select></label><label class="wide">Today’s goal<input id="lessonObjective" value="Compare fractions with the same denominator" maxlength="160" /></label><label class="wide">Ask this question<input id="quizQuestion" value="Which fraction is larger: 3/8 or 5/8?" maxlength="240" /></label><label class="wide">Answer keyword<input id="quizAnswer" value="5/8" maxlength="100" /></label><button id="saveLessonButton" type="button">Save lesson</button></div><div class="dashboard-grid"><p><b id="handCount">0</b> hands up</p><p><b id="gapCount">0</b> questions</p><p><b id="quizScore">—</b> quiz checks</p></div><div id="gapFeed" class="gap-feed">No questions yet.</div></section><div class="voice-body"><div class="voice-face-wrap"><canvas id="voiceFace" aria-label="Nexora voice helper" role="img"></canvas></div><p class="voice-state" id="voiceState">Join a room to start a secure Agora session</p><div class="voice-controls"><button id="voiceButton" class="voice-action" type="button"><span id="voiceButtonText">Join live room</span></button><button id="leaveClassButton" class="leave-class-button" type="button" disabled>Leave</button><button id="muteButton" class="mute-button" type="button" disabled aria-pressed="false"><span class="mute-icon">⌁</span><span id="muteButtonText">Mute</span></button><button id="interruptButton" class="interrupt-button" type="button" disabled>Stop answer</button></div><div id="teacherControls" class="teacher-controls"><button data-teacher-control="allow" type="button">Allow Nexora</button><button data-teacher-control="pause" type="button">Pause AI</button><button data-teacher-control="quiz" type="button">Start quiz</button><button data-teacher-control="summary" type="button">Class ideas</button></div><button id="raiseHandButton" class="raise-hand-button" type="button">Raise my hand</button><div id="quizPrompt" class="quiz-prompt" hidden></div><div class="transcript-panel" aria-live="polite"><div class="transcript-head"><span>LIVE TRANSCRIPT</span><span id="transcriptState">Waiting</span></div><div id="voiceTranscript" class="transcript-log"><p class="transcript-empty">Your Agora conversation will show up here.</p></div></div><div id="classInsights" class="class-insights" hidden></div><p class="voice-hint">Agora keeps the conversation live and shared.</p></div></section>
-  </div></section>
-  <section class="shell trust-section"><div><p class="eyebrow"><i></i> OUR PROMISE</p><h2>Help, not shortcuts.</h2></div><div class="trust-list"><p><b>We explain.</b> You still do the thinking.</p><p><b>We help you start.</b> Your ideas stay your own.</p><p><b>We listen in real time.</b> Agora makes voice conversations feel natural.</p></div></section>
-  <section class="shell closing"><p class="eyebrow"><i></i> ECHO SPHERE HACKATHON</p><h2>What will you<br><em>discover today?</em></h2><button class="btn btn-primary" data-spark>Start exploring <span>→</span></button></section>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-nav"><div class="wrap bar">
+  <a class="brand" href="index.html">Nexora<span>× Agora</span></a>
+  <nav aria-label="Main"><a href="#how">How it works</a><a href="#project">Project helper</a></nav>
+  <div class="tools">
+    <label><span class="sr-only">Language</span><select id="languageSelect"><option value="en">English</option><option value="hi">हिंदी</option><option value="es">Español</option><option value="fr">Français</option></select></label>
+    <a class="btn btn-small" href="explore.html">Explore Nexora</a>
+  </div>
+</div></header>
+<main id="main">
+<div class="hero-bg"><section class="wrap hero">
+  <div>
+    <h1><span class="line"><span>Big ideas</span></span><span class="line"><span>start here.</span></span></h1>
+    <p class="lede enter">Nexora is a learning helper built by a 6th-grade team. Ask about a tricky topic, plan a project, or talk an idea through out loud.</p>
+    <form class="ask enter" id="askForm"><label class="sr-only" for="askInput">Ask Nexora a question</label><input id="askInput" maxlength="200" autocomplete="off" placeholder="Why is the sky blue?" /><button class="btn" type="submit">Ask Nexora</button></form>
+    <p class="chips enter"><button class="chip" type="button" data-q="Explain fractions simply">Explain fractions simply</button><button class="chip" type="button" data-q="Help me pick a science fair project">Help me pick a science fair project</button><button class="chip" type="button" data-q="Why do we dream?">Why do we dream?</button></p>
+    <p class="enter alt"><a class="link" href="explore.html">Or explore everything Nexora can do</a></p>
+  </div>
+  <div class="globe"><canvas id="heroGlobe" aria-label="A globe you can turn by dragging" role="img"></canvas><p>Drag to turn it.</p></div>
+</section></div>
+
+<section class="how" id="how"><div class="wrap how-grid">
+  <div class="how-head"><h2>Three ways to get unstuck.</h2><p>Start wherever your curiosity takes you.</p></div>
+  <div class="steps">
+    <article class="step"><div><h3>Ask</h3><p>Type a question when a topic feels confusing. Nexora explains it in plain steps, and you can ask it to go simpler or give you a challenge.</p></div>
+      <div class="viz" aria-hidden="true"><span class="a">Why is the sky blue?</span><span>Sunlight holds every colour. Air scatters blue the most, so blue reaches your eyes from every direction.</span></div></article>
+    <article class="step"><div><h3>Make</h3><p>Tell Nexora what you care about and what you wish you could fix. It helps you shape a project plan, and you do the investigating.</p></div>
+      <div class="viz chain" aria-hidden="true"><span>Space</span><span>Why do rockets need so much fuel?</span><span>A working model</span></div></article>
+    <article class="step"><div><h3>Talk</h3><p>Join a live classroom and speak out loud. Nexora uses Agora Conversational AI to answer in real time once your teacher lets it in.</p></div>
+      <div class="viz wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
+  </div>
+</div></section>
+
+<section class="project" id="project"><div class="wrap two">
+  <div>
+    <h2>Have an idea? Let’s grow it.</h2>
+    <p class="lede">Tell Nexora what you care about. Your idea map fills in as you type, then the chatbot turns it into a plan. There are no bad first ideas.</p>
+    <form id="projectForm" class="form">
+      <label>What do you like?<input id="projectInterest" required maxlength="120" placeholder="Space, music, clean water" /></label>
+      <label>What do you want to know or fix?<input id="projectProblem" required maxlength="180" placeholder="Why do we waste so much water?" /></label>
+      <label>What do you want to make?<input id="projectOutcome" maxlength="120" placeholder="A working model" /></label>
+      <button class="btn" id="mapGo" type="submit" disabled>Build my plan in the chatbot</button>
+    </form>
+  </div>
+  <ol class="map" aria-live="polite" aria-label="Your idea map">
+    <li class="node"><small>You like</small><b id="mapInterest" data-empty="Space, music, clean water">Space, music, clean water</b></li>
+    <li class="node"><small>You want to know</small><b id="mapProblem" data-empty="Why do we waste so much water?">Why do we waste so much water?</b></li>
+    <li class="node"><small>You will make</small><b id="mapOutcome" data-empty="A working model">A working model</b></li>
+  </ol>
+</div></section>
+
+<section class="band" id="promise"><div class="wrap two">
+  <h2>Help, not shortcuts.</h2>
+  <div class="prose">
+    <p>Nexora explains, and you still do the thinking. It helps you get a project started, and the ideas stay yours. In a live classroom it answers in real time, but only after the teacher lets it speak.</p>
+    <p>There are no analytics or advertising cookies, and a chat or voice session only starts when you start it. <button class="privacy-link" data-privacy type="button">Read the privacy note</button></p>
+  </div>
+</div></section>
+
+<section class="finale"><div class="wrap"><h2>What will you discover today?</h2><a class="btn" href="explore.html">Explore Nexora</a></div></section>
 </main>
-<footer class="shell"><a class="brand" href="#top"><span class="brand-mark">N</span>NEXORA AI <span class="brand-ai">× AGORA</span></a><span>Made by students for Echo Sphere Hackathon.</span></footer>
-<script src="api-config.js"></script><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script><script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script><script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.24.2.js"></script><script src="app.js"></script>
+<footer><div class="wrap"><span>Made by students for the Echo Sphere Hackathon.</span><button class="privacy-link" id="privacyOpen" type="button">Privacy and cookies</button></div></footer>
+<section class="privacy-banner" id="privacyBanner" aria-label="Privacy preferences" hidden><div><strong>Your privacy comes first.</strong><p>Nexora doesn’t use advertising cookies or analytics. Chat stays in this tab and is sent to the selected AI provider only when you ask a question. <button class="inline-link" id="privacyDetails" type="button">Read the privacy note</button></p></div><button class="privacy-accept" id="privacyDismiss" type="button">Got it</button></section>
+<dialog class="privacy-dialog" id="privacyDialog" aria-labelledby="privacyTitle"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form><p class="eyebrow">YOUR CHOICES</p><h2 id="privacyTitle">Privacy & cookies</h2><p>Nexora does not set advertising, analytics, or tracking cookies. The site uses only temporary browser storage needed to remember that this notice was dismissed and which language you picked. It stores no chat history or learning goals between visits.</p><h3>When you use chat or voice</h3><p>Your message is sent to the configured AI provider to generate a reply. Live voice connects to Agora when you choose to join and allow microphone access. The host may keep standard security logs. Avoid entering sensitive or identifying information.</p><h3>Your controls</h3><p>You can dismiss this notice, clear this tab by closing it, and leave an Agora room at any time. Microphone permission can be revoked in your browser settings.</p><p class="privacy-updated">This is a project privacy summary, not legal advice. Update it to match your operators, providers, retention practices, and applicable law before public launch.</p></dialog>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="site.js"></script>
+<script src="globe.js"></script>
 </body>
 </html>
