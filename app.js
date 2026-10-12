@@ -440,8 +440,8 @@ async function setMicrophoneMuted(muted) {
 
 function setVoiceUi(live) {
   voiceButton.classList.toggle('listening', live);
-  if (voiceButtonText) voiceButtonText.textContent = live ? 'End Agora session' : 'Join live classroom';
-  if (!live) voiceState.textContent = 'Join a classroom to create a secure Agora session';
+  if (voiceButtonText) voiceButtonText.textContent = live ? 'Leave session' : 'Join live classroom';
+  if (!live) voiceState.textContent = 'Join a classroom to create a secure session';
   voiceStatus.classList.toggle('live', live);
   voiceStatus.innerHTML = `<i class="dot"></i>${live ? 'Live' : 'Ready'}`;
   muteButton.disabled = !live;
@@ -455,7 +455,7 @@ function resetVoiceTranscript() {
   voiceTranscript.replaceChildren();
   const empty = document.createElement('p');
   empty.className = 'transcript-empty';
-  empty.textContent = 'Transcript events from Agora will appear here during a live session.';
+  empty.textContent = 'The transcript will appear here during a live session.';
   voiceTranscript.append(empty);
   transcriptState.textContent = 'Waiting for session';
 }
@@ -481,7 +481,7 @@ function renderTranscriptEvent(event) {
   if (kind.includes('state') || kind.includes('status')) {
     const label = String(state || 'Active').replaceAll('_', ' ');
     transcriptState.textContent = label.charAt(0).toUpperCase() + label.slice(1);
-    voiceState.textContent = `Agora agent: ${label}`;
+    voiceState.textContent = `Nexora: ${label}`;
     return;
   }
   const isUser = kind.includes('user');
@@ -542,7 +542,20 @@ async function stopRemoteAudio(user) {
   voiceFace?.detachAudioTrack();
 }
 
+/* The voice SDK is fetched only when someone joins a classroom, so browsing never contacts the voice provider. */
+function loadVoiceSdk() {
+  if (window.AgoraRTC) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://download.agora.io/sdk/release/AgoraRTC_N-4.24.2.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('The voice service could not be loaded.'));
+    document.head.append(script);
+  });
+}
+
 async function connectAgora() {
+  await loadVoiceSdk();
   if (isConnectingAgora || agoraClient) return;
   isConnectingAgora = true;
   voiceButton.disabled = true;
@@ -551,7 +564,7 @@ async function connectAgora() {
     voiceState.textContent = 'Connecting…';
     const room = await joinClassroom();
     resetVoiceTranscript();
-    transcriptState.textContent = 'Connecting to Agora…';
+    transcriptState.textContent = 'Connecting…';
     const tokenData = await getJson(`${AGORA_SERVER}/agora/token?channel=${encodeURIComponent(agoraChannel)}&uid=${AGORA_UID}`);
 
     agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
@@ -603,7 +616,7 @@ async function startClassroomAgent() {
     }),
   });
   agoraAgentId = agentResult.agent?.agent_id || agentResult.agent?.agentId;
-  if (!agoraAgentId) throw new Error('Agora started a co-teacher but did not return its ID.');
+  if (!agoraAgentId) throw new Error('The voice assistant started but did not return an ID.');
   if (agentResult.greetingError) {
     const failedAgentId = agoraAgentId;
     agoraAgentId = null;
@@ -613,16 +626,16 @@ async function startClassroomAgent() {
         body: JSON.stringify({ agentId: failedAgentId }),
       });
     } catch (stopError) { console.warn('Could not clean up failed Agora agent:', stopError); }
-    throw new Error(`Agora started the agent, but its test greeting failed: ${agentResult.greetingError}`);
+    throw new Error(`The voice assistant started, but its test greeting failed: ${agentResult.greetingError}`);
   }
   const status = String(agentResult.agent?.status || 'STARTING').toUpperCase();
   transcriptState.textContent = `Agent ${status.toLowerCase()}`;
-  voiceState.textContent = `Agora co-teacher ${status.toLowerCase()}. You should hear its greeting now.`;
+  voiceState.textContent = `Co-teacher ${status.toLowerCase()}. You should hear its greeting now.`;
   agentAudioPublished = false;
   if (agentReadinessTimer) window.clearTimeout(agentReadinessTimer);
   agentReadinessTimer = window.setTimeout(() => {
     if (!agentAudioPublished && agoraAgentId) {
-      voiceState.textContent = 'Agora started the agent, but it has not published audio. Check that your AI Studio pipeline has a working ASR, LLM, and TTS configuration.';
+      voiceState.textContent = 'The voice assistant started, but it has not published audio. Check that your AI Studio pipeline has a working ASR, LLM, and TTS configuration.';
       transcriptState.textContent = 'Agent has no audio';
     }
   }, 15000);

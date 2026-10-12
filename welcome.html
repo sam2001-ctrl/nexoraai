@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome to Nexora</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Young+Serif&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="theme.js"></script>
+</head>
+<body class="welcome"><a class="skip" href="#main">Skip to content</a>
+<main class="welcome-card" id="main">
+  <p class="welcome-brand">Nexora</p>
+  <h1>How old are you?</h1>
+  <p class="lede">This only changes how the site looks. Your age stays on your device.</p>
+  <form id="ageForm" novalidate>
+    <label class="sr-only" for="age">Your age</label>
+    <input id="age" type="number" inputmode="numeric" min="1" max="120" placeholder="Type your age" autocomplete="off" />
+    <button class="btn" type="submit">Let’s go</button>
+  </form>
+  <p class="form-note">We don’t save your age. This tab only remembers whether you are under 13, 13–17 or 18+. <a href="privacy.html">Privacy policy</a></p>
+  <p class="welcome-error" id="ageError" role="alert"></p>
+  <p class="welcome-tag" id="bandTag" aria-live="polite"></p>
+</main>
+<footer><div class="wrap"><span>Nexora</span><nav class="legal-links" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="cookies.html">Cookies</a><a href="refunds.html">Refunds</a><a href="delete-data.html">Delete my data</a><a href="licenses.html">Licenses</a></nav></div></footer>
+<script src="welcome.js"></script>
+</body>
+</html>

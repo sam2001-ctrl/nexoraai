@@ -1,5 +1,7 @@
 /* Nexora - the turnable globe on the home page. */
 
+const tone = name => new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#1f5c4a');
+
 function glowTexture() {
   const size = 256;
   const canvas = document.createElement('canvas');
@@ -7,9 +9,9 @@ function glowTexture() {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
   const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0, 'rgba(255, 216, 77, 0.5)');
-  gradient.addColorStop(0.5, 'rgba(255, 216, 77, 0.14)');
-  gradient.addColorStop(1, 'rgba(255, 216, 77, 0)');
+  gradient.addColorStop(0, 'rgba(233, 226, 207, 0.5)');
+  gradient.addColorStop(0.5, 'rgba(233, 226, 207, 0.14)');
+  gradient.addColorStop(1, 'rgba(233, 226, 207, 0)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
   return new THREE.CanvasTexture(canvas);
@@ -29,12 +31,12 @@ function createGlobe(canvasId) {
   const group = new THREE.Group();
   scene.add(group);
 
-  const wireMaterial = new THREE.MeshBasicMaterial({ color: 0x2447d0, wireframe: true, transparent: true, opacity: 0.6 });
+  const wireMaterial = new THREE.MeshBasicMaterial({ color: tone('--globe-a'), wireframe: true, transparent: true, opacity: 0.6 });
   const wireMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 3), wireMaterial);
   group.add(wireMesh);
 
   const dotsGeometry = new THREE.IcosahedronGeometry(1.012, 3);
-  const dotsMaterial = new THREE.PointsMaterial({ color: 0x13203b, size: 0.028, transparent: true, opacity: 0.85 });
+  const dotsMaterial = new THREE.PointsMaterial({ color: tone('--globe-b'), size: 0.028, transparent: true, opacity: 0.85 });
   group.add(new THREE.Points(dotsGeometry, dotsMaterial));
 
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false }));

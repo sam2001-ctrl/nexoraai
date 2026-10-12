@@ -15,8 +15,6 @@
     banner.hidden = true;
     try { sessionStorage.setItem('nexora-privacy-notice', 'seen'); } catch { /* storage can be off in private windows */ }
   });
-  document.querySelectorAll('#privacyOpen, #privacyDetails, [data-privacy]')
-    .forEach(button => button.addEventListener('click', () => dialog.showModal()));
 
   /* ---- language: remembered for this tab, shared with the chat requests ---- */
   const words = {

@@ -3,26 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nexora × Agora: big ideas start here</title>
-  <meta name="description" content="Nexora is a learning helper built by students, with live voice powered by Agora Conversational AI." />
+  <title>Nexora: big ideas start here</title>
+  <meta name="description" content="Nexora is a learning helper built by students, with live voice for the classroom." />
   <meta name="theme-color" content="#f2f4f7" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Nexora × Agora" />
-  <meta property="og:title" content="Nexora × Agora: big ideas start here" />
-  <meta property="og:description" content="Nexora is a learning helper built by students, with live voice powered by Agora Conversational AI." />
+  <meta property="og:site_name" content="Nexora" />
+  <meta property="og:title" content="Nexora: big ideas start here" />
+  <meta property="og:description" content="Nexora is a learning helper built by students, with live voice for the classroom." />
   <meta name="twitter:card" content="summary" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Young+Serif&display=swap" />
   <link rel="stylesheet" href="styles.css" />
+  <script src="theme.js"></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-nav"><div class="wrap bar">
-  <a class="brand" href="index.html">Nexora<span>× Agora</span></a>
-  <nav aria-label="Main"><a href="#how">How it works</a><a href="#project">Project helper</a></nav>
+  <a class="brand" href="index.html">Nexora</a>
+  <nav aria-label="Main"><a href="#project">Project helper</a></nav>
   <div class="tools">
     <label><span class="sr-only">Language</span><select id="languageSelect"><option value="en">English</option><option value="hi">हिंदी</option><option value="es">Español</option><option value="fr">Français</option></select></label>
     <a class="btn btn-small" href="explore.html">Explore Nexora</a>
@@ -32,7 +33,7 @@
 <div class="hero-bg"><section class="wrap hero">
   <div>
     <h1><span class="line"><span>Big ideas</span></span><span class="line"><span>start here.</span></span></h1>
-    <p class="lede enter">Nexora is a learning helper built by a 6th-grade team. Ask about a tricky topic, plan a project, or talk an idea through out loud.</p>
+    <p class="lede enter">A calm place to ask questions, plan projects and talk ideas through. Nexora explains; you do the thinking.</p>
     <form class="ask enter" id="askForm"><label class="sr-only" for="askInput">Ask Nexora a question</label><input id="askInput" maxlength="200" autocomplete="off" placeholder="Why is the sky blue?" /><button class="btn" type="submit">Ask Nexora</button></form>
     <p class="chips enter"><button class="chip" type="button" data-q="Explain fractions simply">Explain fractions simply</button><button class="chip" type="button" data-q="Help me pick a science fair project">Help me pick a science fair project</button><button class="chip" type="button" data-q="Why do we dream?">Why do we dream?</button></p>
     <p class="enter alt"><a class="link" href="explore.html">Or explore everything Nexora can do</a></p>
@@ -40,17 +41,6 @@
   <div class="globe"><canvas id="heroGlobe" aria-label="A globe you can turn by dragging" role="img"></canvas><p>Drag to turn it.</p></div>
 </section></div>
 
-<section class="how" id="how"><div class="wrap how-grid">
-  <div class="how-head"><h2>Three ways to get unstuck.</h2><p>Start wherever your curiosity takes you.</p></div>
-  <div class="steps">
-    <article class="step"><div><h3>Ask</h3><p>Type a question when a topic feels confusing. Nexora explains it in plain steps, and you can ask it to go simpler or give you a challenge.</p></div>
-      <div class="viz" aria-hidden="true"><span class="a">Why is the sky blue?</span><span>Sunlight holds every colour. Air scatters blue the most, so blue reaches your eyes from every direction.</span></div></article>
-    <article class="step"><div><h3>Make</h3><p>Tell Nexora what you care about and what you wish you could fix. It helps you shape a project plan, and you do the investigating.</p></div>
-      <div class="viz chain" aria-hidden="true"><span>Space</span><span>Why do rockets need so much fuel?</span><span>A working model</span></div></article>
-    <article class="step"><div><h3>Talk</h3><p>Join a live classroom and speak out loud. Nexora uses Agora Conversational AI to answer in real time once your teacher lets it in.</p></div>
-      <div class="viz wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
-  </div>
-</div></section>
 
 <section class="project" id="project"><div class="wrap two">
   <div>
@@ -74,15 +64,14 @@
   <h2>Help, not shortcuts.</h2>
   <div class="prose">
     <p>Nexora explains, and you still do the thinking. It helps you get a project started, and the ideas stay yours. In a live classroom it answers in real time, but only after the teacher lets it speak.</p>
-    <p>There are no analytics or advertising cookies, and a chat or voice session only starts when you start it. <button class="privacy-link" data-privacy type="button">Read the privacy note</button></p>
+    <p>There are no analytics or advertising cookies, and a chat or voice session only starts when you start it. <a class="privacy-link" href="privacy.html">Read the privacy policy</a></p>
   </div>
 </div></section>
 
 <section class="finale"><div class="wrap"><h2>What will you discover today?</h2><a class="btn" href="explore.html">Explore Nexora</a></div></section>
 </main>
-<footer><div class="wrap"><span>Made by students for the Echo Sphere Hackathon.</span><button class="privacy-link" id="privacyOpen" type="button">Privacy and cookies</button></div></footer>
-<section class="privacy-banner" id="privacyBanner" aria-label="Privacy preferences" hidden><div><strong>Your privacy comes first.</strong><p>Nexora doesn’t use advertising cookies or analytics. Chat stays in this tab and is sent to the selected AI provider only when you ask a question. <button class="inline-link" id="privacyDetails" type="button">Read the privacy note</button></p></div><button class="privacy-accept" id="privacyDismiss" type="button">Got it</button></section>
-<dialog class="privacy-dialog" id="privacyDialog" aria-labelledby="privacyTitle"><form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form><p class="eyebrow">YOUR CHOICES</p><h2 id="privacyTitle">Privacy & cookies</h2><p>Nexora does not set advertising, analytics, or tracking cookies. The site uses only temporary browser storage needed to remember that this notice was dismissed and which language you picked. It stores no chat history or learning goals between visits.</p><h3>When you use chat or voice</h3><p>Your message is sent to the configured AI provider to generate a reply. Live voice connects to Agora when you choose to join and allow microphone access. The host may keep standard security logs. Avoid entering sensitive or identifying information.</p><h3>Your controls</h3><p>You can dismiss this notice, clear this tab by closing it, and leave an Agora room at any time. Microphone permission can be revoked in your browser settings.</p><p class="privacy-updated">This is a project privacy summary, not legal advice. Update it to match your operators, providers, retention practices, and applicable law before public launch.</p></dialog>
+<footer><div class="wrap"><span>Made by students.</span><nav class="legal-links" aria-label="Legal"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="cookies.html">Cookies</a><a href="refunds.html">Refunds</a><a href="delete-data.html">Delete my data</a><a href="licenses.html">Licenses</a></nav></div></footer>
+<section class="privacy-banner" id="privacyBanner" aria-label="Cookie notice" hidden><div><strong>Cookies and privacy</strong><p>Nexora sets no advertising or analytics cookies. It keeps a few essential settings in this tab only. Read our <a class="inline-link" href="cookies.html">cookie policy</a> and <a class="inline-link" href="privacy.html">privacy policy</a>.</p></div><button class="privacy-accept" id="privacyDismiss" type="button">OK</button></section>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="site.js"></script>
 <script src="globe.js"></script>
